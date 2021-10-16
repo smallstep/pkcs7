@@ -597,7 +597,7 @@ but that's not what ships are built for.
 	os.Remove(tmpContentFile.Name()) // clean up
 }
 
-var sampleAppleAppAttestationReceipt = []byte(`
+var sampleAppleAppAttestationReceiptFixture = []byte(`
 -----BEGIN -----
 MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0B
 BwGggCSABIID6DGCBAswIwIBAgIBAQQbOFlFMjNOWlM1Ny5jb20ua2F5YWsudHJh
@@ -681,7 +681,7 @@ IQCE46Koolc/FuL29/MUK1Auqt2XUJPK2DD9aDJgbPPKBwIgbsggotsin/9j1y/Z
 4pBdpYCE6+FY7zCTIp/IaUWymtYAAAAAAAA=
 -----END -----`)
 func TestParseSignedOctetStringWithAppleAttestation(t *testing.T) {
-	decodedReceipt, _ := pem.Decode(sampleAppleAppAttestationReceipt)
+	decodedReceipt, _ := pem.Decode(sampleAppleAppAttestationReceiptFixture)
 	p7, err := Parse(decodedReceipt.Bytes)
 	if err != nil {
 		t.Fatal("could not parse receipt containing compound octet string", err)
