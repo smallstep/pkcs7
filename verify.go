@@ -190,6 +190,7 @@ func (p7 *PKCS7) UnmarshalSignedAttribute(attributeType asn1.ObjectIdentifier, o
 }
 
 func parseSignedData(data []byte) (*PKCS7, error) {
+
 	var sd signedData
 	asn1.Unmarshal(data, &sd)
 	certs, err := sd.Certificates.Parse()
@@ -207,6 +208,7 @@ func parseSignedData(data []byte) (*PKCS7, error) {
 			return nil, err
 		}
 	}
+
 	// Compound octet string
 	if compound.IsCompound {
 		if compound.Tag == 4 {
