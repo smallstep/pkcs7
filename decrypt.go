@@ -7,7 +7,6 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/asn1"
 	"errors"
@@ -31,9 +30,9 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 		return nil, errors.New("pkcs7: no enveloped recipient for provided certificate")
 	}
 	switch pkey := pkey.(type) {
-	case *rsa.PrivateKey:
-		var contentKey []byte
-		contentKey, err := rsa.DecryptPKCS1v15(rand.Reader, pkey, recipient.EncryptedKey)
+	case crypto.Decrypter:
+		// Generic case to handle anything that provides the crypto.Decrypter interface.
+		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, nil)
 		if err != nil {
 			return nil, err
 		}

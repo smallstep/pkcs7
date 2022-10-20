@@ -114,11 +114,11 @@ func getDigestOIDForSignatureAlgorithm(digestAlg x509.SignatureAlgorithm) (asn1.
 	return nil, fmt.Errorf("pkcs7: cannot convert hash to oid, unknown hash algorithm")
 }
 
-// getOIDForEncryptionAlgorithm takes the private key type of the signer and
+// getOIDForEncryptionAlgorithm takes the public or private key type of the signer and
 // the OID of a digest algorithm to return the appropriate signerInfo.DigestEncryptionAlgorithm
-func getOIDForEncryptionAlgorithm(pkey crypto.PrivateKey, OIDDigestAlg asn1.ObjectIdentifier) (asn1.ObjectIdentifier, error) {
-	switch pkey.(type) {
-	case *rsa.PrivateKey:
+func getOIDForEncryptionAlgorithm(pkey interface{}, OIDDigestAlg asn1.ObjectIdentifier) (asn1.ObjectIdentifier, error) {
+	switch k := pkey.(type) {
+	case *rsa.PrivateKey, *rsa.PublicKey:
 		switch {
 		default:
 			return OIDEncryptionAlgorithmRSA, nil
@@ -133,7 +133,7 @@ func getOIDForEncryptionAlgorithm(pkey crypto.PrivateKey, OIDDigestAlg asn1.Obje
 		case OIDDigestAlg.Equal(OIDDigestAlgorithmSHA512):
 			return OIDEncryptionAlgorithmRSASHA512, nil
 		}
-	case *ecdsa.PrivateKey:
+	case *ecdsa.PrivateKey, *ecdsa.PublicKey:
 		switch {
 		case OIDDigestAlg.Equal(OIDDigestAlgorithmSHA1):
 			return OIDDigestAlgorithmECDSASHA1, nil
@@ -144,8 +144,13 @@ func getOIDForEncryptionAlgorithm(pkey crypto.PrivateKey, OIDDigestAlg asn1.Obje
 		case OIDDigestAlg.Equal(OIDDigestAlgorithmSHA512):
 			return OIDDigestAlgorithmECDSASHA512, nil
 		}
-	case *dsa.PrivateKey:
+	case *dsa.PrivateKey, *dsa.PublicKey:
 		return OIDDigestAlgorithmDSA, nil
+	case crypto.Signer:
+		// This generic case is here to cover types from other packages. It
+		// was specifically added to handle the private keyRSA type in the
+		// github.com/go-piv/piv-go/piv package.
+		return getOIDForEncryptionAlgorithm(k.Public(), OIDDigestAlg)
 	}
 	return nil, fmt.Errorf("pkcs7: cannot convert encryption algorithm to oid, unknown private key type %T", pkey)
 
