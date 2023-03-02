@@ -7,7 +7,9 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -31,14 +33,77 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 	}
 	switch pkey := pkey.(type) {
 	case crypto.Decrypter:
-		// Generic case to handle anything that provides the crypto.Decrypter interface.
-		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, nil)
+		var opts crypto.DecrypterOpts
+		switch algorithm := recipient.KeyEncryptionAlgorithm.Algorithm; {
+		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
+			var hashFunc crypto.Hash
+			hashFunc, err := getHashFuncForKeyEncryptionAlgorithm(recipient.KeyEncryptionAlgorithm)
+			if err != nil {
+				return nil, err
+			}
+			opts = &rsa.OAEPOptions{Hash: hashFunc}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSAMD5):
+			opts = &rsa.OAEPOptions{Hash: crypto.MD5}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA1):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA1}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA224):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA224}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA256):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA256}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA384):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA384}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA512):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA512}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
+			// not an RSA-OAEP variant; no need to set `opts`.
+		default:
+			return nil, ErrUnsupportedAlgorithm
+		}
+		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, opts)
 		if err != nil {
 			return nil, err
 		}
 		return data.EncryptedContentInfo.decrypt(contentKey)
 	}
 	return nil, ErrUnsupportedAlgorithm
+}
+
+// RFC 4055, 4.1
+// The current ASN.1 parser does not support non-integer defaults so the 'default:' tags here do nothing.
+type rsaOAEPAlgorithmParameters struct {
+	HashFunc    pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:0,default:sha1Identifier"`
+	MaskGenFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:1,default:mgf1SHA1Identifier"`
+	PSourceFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:2,default:pSpecifiedEmptyIdentifier"`
+}
+
+func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmIdentifier) (crypto.Hash, error) {
+	invalidHashFunc := crypto.Hash(0)
+	params := &rsaOAEPAlgorithmParameters{
+		HashFunc: pkix.AlgorithmIdentifier{Algorithm: OIDDigestAlgorithmSHA1}, // set default hash algorithm to SHA1
+	}
+	var rest []byte
+	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
+	if err != nil {
+		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %v", err)
+	}
+	if len(rest) != 0 {
+		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
+	}
+
+	switch {
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA1):
+		return crypto.SHA1, nil
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA224):
+		return crypto.SHA224, nil
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA256):
+		return crypto.SHA256, nil
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA384):
+		return crypto.SHA384, nil
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA512):
+		return crypto.SHA512, nil
+	default:
+		return invalidHashFunc, errors.New("unsupported hash function for RSA-OAEP")
+	}
 }
 
 // DecryptUsingPSK decrypts encrypted data using caller provided
