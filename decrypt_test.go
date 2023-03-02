@@ -5,33 +5,35 @@ import (
 	"testing"
 )
 
-type testDecryptStruct struct {
-	name, algorithmName, hashFunc, testFixture string
-}
-
 func TestDecrypt(t *testing.T) {
-	for i, test := range testDecryptData {
-		fixture := UnmarshalTestFixture(test.testFixture)
-		p7, err := Parse(fixture.Input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		content, err := p7.Decrypt(fixture.Certificate, fixture.PrivateKey)
-		if err != nil {
-			t.Errorf("#%d algorithm name: %s, hash function: %s: cannot Decrypt with error: %v", i, test.algorithmName, test.hashFunc, err)
-		}
-		expected := []byte("This is a test")
-		if !bytes.Equal(content, expected) {
-			t.Errorf("#%d algorithm name: %s, hash function: %s: decrypted result does not match.\n\tExpected:%s\n\tActual:%s", i, test.algorithmName, test.hashFunc, expected, content)
-		}
+	tests := []struct {
+		name      string
+		algorithm string
+		hashFunc  string
+		fixture   string
+		expected  []byte
+	}{
+		{name: "rsa-pkcs-#1-v1.5/1", algorithm: "RSA PKCS #1 v1.5", fixture: EncryptedTestFixture, expected: []byte("This is a test")},
+		{name: "rsa-pkcs-#1-v1.5/2", algorithm: "RSA PKCS #1 v1.5", fixture: RSAPKCS1v15EncryptedTestFixture, expected: []byte("This is a test")},
+		{name: "rsa-oaep-sha1", algorithm: "RSA-OAEP", hashFunc: "SHA-1", fixture: RSAOAEPSHA1EncryptedTestFixture, expected: []byte("This is a test")},
+		{name: "rsa-oaep-sha256", algorithm: "RSA-OAEP", hashFunc: "SHA-256", fixture: RSAOAEPSHA256EncryptedTestFixture, expected: []byte("This is a test")},
 	}
-}
-
-var testDecryptData = []testDecryptStruct{
-	{name: "rsa-pkcs-#1-v1.5 (1)", algorithmName: "RSA PKCS #1 v1.5", testFixture: EncryptedTestFixture},
-	{name: "rsa-pkcs-#1-v1.5 (2)", algorithmName: "RSA PKCS #1 v1.5", testFixture: RSAPKCS1v15EncryptedTestFixture},
-	{name: "rsa-oaep-sha1", algorithmName: "RSA-OAEP", hashFunc: "SHA-1", testFixture: RSAOAEPSHA1EncryptedTestFixture},
-	{name: "rsa-oaep-sha256", algorithmName: "RSA-OAEP", hashFunc: "SHA-256", testFixture: RSAOAEPSHA256EncryptedTestFixture},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := UnmarshalTestFixture(tt.fixture)
+			p7, err := Parse(fixture.Input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			content, err := p7.Decrypt(fixture.Certificate, fixture.PrivateKey)
+			if err != nil {
+				t.Errorf("algorithm name: %s, hash function: %s: cannot Decrypt with error: %v", tt.algorithm, tt.hashFunc, err)
+			}
+			if !bytes.Equal(content, tt.expected) {
+				t.Errorf("algorithm name: %s, hash function: %s: decrypted result does not match.\n\tExpected:%s\n\tActual:%s", tt.algorithm, tt.hashFunc, tt.expected, content)
+			}
+		})
+	}
 }
 
 // echo -n "This is a test" > test.txt
