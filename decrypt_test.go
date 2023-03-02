@@ -7,16 +7,30 @@ import (
 
 func TestDecrypt(t *testing.T) {
 	tests := []struct {
-		name      string
-		algorithm string
-		hashFunc  string
-		fixture   string
-		expected  []byte
+		name     string
+		fixture  string
+		expected string
 	}{
-		{name: "rsa-pkcs-#1-v1.5/1", algorithm: "RSA PKCS #1 v1.5", fixture: EncryptedTestFixture, expected: []byte("This is a test")},
-		{name: "rsa-pkcs-#1-v1.5/2", algorithm: "RSA PKCS #1 v1.5", fixture: RSAPKCS1v15EncryptedTestFixture, expected: []byte("This is a test")},
-		{name: "rsa-oaep-sha1", algorithm: "RSA-OAEP", hashFunc: "SHA-1", fixture: RSAOAEPSHA1EncryptedTestFixture, expected: []byte("This is a test")},
-		{name: "rsa-oaep-sha256", algorithm: "RSA-OAEP", hashFunc: "SHA-256", fixture: RSAOAEPSHA256EncryptedTestFixture, expected: []byte("This is a test")},
+		{
+			name:     "rsa-pkcs-#1-v1.5/1",
+			fixture:  EncryptedTestFixture,
+			expected: "This is a test",
+		},
+		{
+			name:     "rsa-pkcs-#1-v1.5/2",
+			fixture:  RSAPKCS1v15EncryptedTestFixture,
+			expected: "This is a test",
+		},
+		{
+			name:     "rsa-oaep-sha1",
+			fixture:  RSAOAEPSHA1EncryptedTestFixture,
+			expected: "This is a test",
+		},
+		{
+			name:     "rsa-oaep-sha256",
+			fixture:  RSAOAEPSHA256EncryptedTestFixture,
+			expected: "This is a test",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -27,14 +41,18 @@ func TestDecrypt(t *testing.T) {
 			}
 			content, err := p7.Decrypt(fixture.Certificate, fixture.PrivateKey)
 			if err != nil {
-				t.Errorf("algorithm name: %s, hash function: %s: cannot Decrypt with error: %v", tt.algorithm, tt.hashFunc, err)
+				t.Errorf("cannot Decrypt with error: %v", err)
 			}
-			if !bytes.Equal(content, tt.expected) {
-				t.Errorf("algorithm name: %s, hash function: %s: decrypted result does not match.\n\tExpected:%s\n\tActual:%s", tt.algorithm, tt.hashFunc, tt.expected, content)
+			if !bytes.Equal(content, []byte(tt.expected)) {
+				t.Errorf("decrypted result does not match.\n\tExpected:%s\n\tActual:%s", []byte(tt.expected), content)
 			}
 		})
 	}
 }
+
+// TODO: use `embed` (after upping Go to at least 1.16), so that
+// it's easier to work with the files used to generate the below
+// test fixtures.
 
 // echo -n "This is a test" > test.txt
 // openssl cms -encrypt -in test.txt cert.pem
