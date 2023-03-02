@@ -33,7 +33,7 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 	}
 	switch pkey := pkey.(type) {
 	case crypto.Decrypter:
-		var opts crypto.DecrypterOpts = nil
+		var opts crypto.DecrypterOpts
 		switch algorithm := recipient.KeyEncryptionAlgorithm.Algorithm; {
 		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
 			var hashFunc crypto.Hash
@@ -46,6 +46,8 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 			opts = &rsa.OAEPOptions{Hash: crypto.MD5}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA1):
 			opts = &rsa.OAEPOptions{Hash: crypto.SHA1}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA224):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA224}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA256):
 			opts = &rsa.OAEPOptions{Hash: crypto.SHA256}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA384):
@@ -82,7 +84,7 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	var rest []byte
 	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
 	if err != nil {
-		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %s", err.Error())
+		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %v", err)
 	}
 	if len(rest) != 0 {
 		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
@@ -91,6 +93,8 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	switch {
 	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA1):
 		return crypto.SHA1, nil
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA224):
+		return crypto.SHA224, nil
 	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA256):
 		return crypto.SHA256, nil
 	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA384):
