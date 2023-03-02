@@ -7,7 +7,9 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -18,6 +20,14 @@ var ErrUnsupportedAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA, 
 
 // ErrNotEncryptedContent is returned when attempting to Decrypt data that is not encrypted data
 var ErrNotEncryptedContent = errors.New("pkcs7: content data is a decryptable data type")
+
+// RFC 4055, 4.1
+// The current ASN.1 parser does not support non-integer defaults so the 'default:' tags here do nothing.
+type rsaOAEPAlgorithmParameters struct {
+	HashFunc    pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:0,default:sha1Identifier"`
+	MaskGenFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:1,default:mgf1SHA1Identifier"`
+	PSourceFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:2,default:pSpecifiedEmptyIdentifier"`
+}
 
 // Decrypt decrypts encrypted content info for recipient cert and private key
 func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte, error) {
@@ -31,14 +41,55 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 	}
 	switch pkey := pkey.(type) {
 	case crypto.Decrypter:
-		// Generic case to handle anything that provides the crypto.Decrypter interface.
-		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, nil)
+		var opts crypto.DecrypterOpts = nil
+		// TODO: there are more encryption OAEP encryption schemes to support (with hashes etc.) in the switch
+		switch algorithm := recipient.KeyEncryptionAlgorithm.Algorithm; {
+		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
+			var hashFunc crypto.Hash
+			hashFunc, err := getHashFuncForKeyEncryptionAlgorithm(recipient.KeyEncryptionAlgorithm)
+			if err != nil {
+				return nil, fmt.Errorf("pkcs7: %w", err)
+			}
+			opts = &rsa.OAEPOptions{Hash: hashFunc}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
+			// nothing to do
+		default:
+			return nil, ErrUnsupportedAlgorithm
+		}
+		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, opts)
 		if err != nil {
 			return nil, err
 		}
 		return data.EncryptedContentInfo.decrypt(contentKey)
 	}
 	return nil, ErrUnsupportedAlgorithm
+}
+
+func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmIdentifier) (crypto.Hash, error) {
+	invalidHashFunc := crypto.Hash(0)
+	params := new(rsaOAEPAlgorithmParameters)
+	var rest []byte
+	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
+	if err != nil {
+		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %w", err)
+	}
+	if len(rest) != 0 {
+		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
+	}
+	// The default is SHA-1.
+	if params.HashFunc.Algorithm == nil || params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA1) {
+		return crypto.SHA1, nil
+	}
+	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA256) {
+		return crypto.SHA256, nil
+	}
+	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA384) {
+		return crypto.SHA384, nil
+	}
+	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA512) {
+		return crypto.SHA512, nil
+	}
+	return invalidHashFunc, errors.New("unsupported hash function for RSA-OAEP")
 }
 
 // DecryptUsingPSK decrypts encrypted data using caller provided
