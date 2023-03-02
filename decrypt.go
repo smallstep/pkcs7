@@ -42,7 +42,6 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 	switch pkey := pkey.(type) {
 	case crypto.Decrypter:
 		var opts crypto.DecrypterOpts = nil
-		// TODO: there are more encryption OAEP encryption schemes to support (with hashes etc.) in the switch
 		switch algorithm := recipient.KeyEncryptionAlgorithm.Algorithm; {
 		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
 			var hashFunc crypto.Hash
@@ -51,8 +50,18 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 				return nil, fmt.Errorf("pkcs7: %w", err)
 			}
 			opts = &rsa.OAEPOptions{Hash: hashFunc}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSAMD5):
+			opts = &rsa.OAEPOptions{Hash: crypto.MD5}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA1):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA1}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA256):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA256}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA384):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA384}
+		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA512):
+			opts = &rsa.OAEPOptions{Hash: crypto.SHA512}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
-			// nothing to do
+			// not an RSA-OAEP variant; no need to set `opts`.
 		default:
 			return nil, ErrUnsupportedAlgorithm
 		}
