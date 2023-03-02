@@ -21,14 +21,6 @@ var ErrUnsupportedAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA, 
 // ErrNotEncryptedContent is returned when attempting to Decrypt data that is not encrypted data
 var ErrNotEncryptedContent = errors.New("pkcs7: content data is a decryptable data type")
 
-// RFC 4055, 4.1
-// The current ASN.1 parser does not support non-integer defaults so the 'default:' tags here do nothing.
-type rsaOAEPAlgorithmParameters struct {
-	HashFunc    pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:0,default:sha1Identifier"`
-	MaskGenFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:1,default:mgf1SHA1Identifier"`
-	PSourceFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:2,default:pSpecifiedEmptyIdentifier"`
-}
-
 // Decrypt decrypts encrypted content info for recipient cert and private key
 func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte, error) {
 	data, ok := p7.raw.(envelopedData)
@@ -74,9 +66,19 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 	return nil, ErrUnsupportedAlgorithm
 }
 
+// RFC 4055, 4.1
+// The current ASN.1 parser does not support non-integer defaults so the 'default:' tags here do nothing.
+type rsaOAEPAlgorithmParameters struct {
+	HashFunc    pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:0,default:sha1Identifier"`
+	MaskGenFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:1,default:mgf1SHA1Identifier"`
+	PSourceFunc pkix.AlgorithmIdentifier `asn1:"optional,explicit,tag:2,default:pSpecifiedEmptyIdentifier"`
+}
+
 func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmIdentifier) (crypto.Hash, error) {
 	invalidHashFunc := crypto.Hash(0)
-	params := new(rsaOAEPAlgorithmParameters)
+	params := &rsaOAEPAlgorithmParameters{
+		HashFunc: pkix.AlgorithmIdentifier{Algorithm: OIDDigestAlgorithmSHA1}, // set default hash algorithm to SHA1
+	}
 	var rest []byte
 	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
 	if err != nil {
@@ -85,20 +87,19 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	if len(rest) != 0 {
 		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
 	}
-	// The default is SHA-1.
-	if params.HashFunc.Algorithm == nil || params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA1) {
+
+	switch {
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA1):
 		return crypto.SHA1, nil
-	}
-	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA256) {
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA256):
 		return crypto.SHA256, nil
-	}
-	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA384) {
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA384):
 		return crypto.SHA384, nil
-	}
-	if params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA512) {
+	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA512):
 		return crypto.SHA512, nil
+	default:
+		return invalidHashFunc, errors.New("unsupported hash function for RSA-OAEP")
 	}
-	return invalidHashFunc, errors.New("unsupported hash function for RSA-OAEP")
 }
 
 // DecryptUsingPSK decrypts encrypted data using caller provided
