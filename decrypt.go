@@ -47,7 +47,7 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 			var hashFunc crypto.Hash
 			hashFunc, err := getHashFuncForKeyEncryptionAlgorithm(recipient.KeyEncryptionAlgorithm)
 			if err != nil {
-				return nil, fmt.Errorf("pkcs7: %w", err)
+				return nil, err
 			}
 			opts = &rsa.OAEPOptions{Hash: hashFunc}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSAMD5):
@@ -80,7 +80,7 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	var rest []byte
 	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
 	if err != nil {
-		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %w", err)
+		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %s", err.Error())
 	}
 	if len(rest) != 0 {
 		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
