@@ -314,7 +314,7 @@ func Encrypt(content []byte, recipients []*x509.Certificate) ([]byte, error) {
 		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
 			parameters, err := getParametersForKeyEncryptionAlgorithm(algorithm, hash)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get parameters for key encryption: %w", err)
+				return nil, fmt.Errorf("failed to get parameters for key encryption: %v", err)
 			}
 			kea = pkix.AlgorithmIdentifier{
 				Algorithm:  algorithm,
@@ -324,7 +324,6 @@ func Encrypt(content []byte, recipients []*x509.Certificate) ([]byte, error) {
 			kea = pkix.AlgorithmIdentifier{
 				Algorithm: algorithm,
 			}
-		// TODO: other supported key encryption algorithms?
 		default:
 			return nil, ErrUnsupportedKeyEncryptionAlgorithm
 		}
@@ -388,7 +387,7 @@ func getParametersForKeyEncryptionAlgorithm(algorithm asn1.ObjectIdentifier, has
 
 	b, err := asn1.Marshal(params)
 	if err != nil {
-		return asn1.RawValue{}, fmt.Errorf("failed marshaling key encryption parameters: %w", err)
+		return asn1.RawValue{}, fmt.Errorf("failed marshaling key encryption parameters: %v", err)
 	}
 
 	return asn1.RawValue{
