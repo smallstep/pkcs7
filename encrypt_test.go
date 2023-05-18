@@ -2,7 +2,10 @@ package pkcs7
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"testing"
 )
 
@@ -98,5 +101,46 @@ func TestPad(t *testing.T) {
 		if !bytes.Equal(test.Expected, padded) {
 			t.Errorf("pad results mismatch:\n\tExpected: %X\n\tActual: %X", test.Expected, padded)
 		}
+	}
+}
+
+func Test_getParametersForKeyEncryptionAlgorithm(t *testing.T) {
+	type args struct {
+		algorithm asn1.ObjectIdentifier
+		hash      crypto.Hash
+	}
+	tests := []struct {
+		name   string
+		args   args
+		expErr error
+	}{
+		{name: "sha256", args: args{algorithm: OIDEncryptionAlgorithmRSAESOAEP, hash: crypto.SHA256}},
+		{name: "sha512", args: args{algorithm: OIDEncryptionAlgorithmRSAESOAEP, hash: crypto.SHA512}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getParametersForKeyEncryptionAlgorithm(tt.args.algorithm, tt.args.hash)
+			if tt.expErr != nil {
+				if err == nil {
+					t.Errorf("getParametersForKeyEncryptionAlgorithm() error = %v, expErr %v", err, tt.expErr)
+					return
+				}
+				if err.Error() != tt.expErr.Error() {
+					t.Errorf("getParametersForKeyEncryptionAlgorithm() = %v, want %v", err.Error(), tt.expErr.Error())
+					return
+				}
+			}
+
+			// test if the reverse operation results in the same value
+			alg := pkix.AlgorithmIdentifier{Algorithm: tt.args.algorithm, Parameters: got}
+			resultHash, err := getHashFuncForKeyEncryptionAlgorithm(alg)
+			if err != nil {
+				t.Errorf("getHashFuncForKeyEncryptionAlgorithm errors = %v", err)
+			}
+
+			if resultHash != tt.args.hash {
+				t.Errorf("getHashFuncForKeyEncryptionAlgorithm() = %v, want %v", resultHash, tt.args.hash)
+			}
+		})
 	}
 }

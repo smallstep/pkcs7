@@ -18,6 +18,9 @@ import (
 // ErrUnsupportedAlgorithm tells you when our quick dev assumptions have failed
 var ErrUnsupportedAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA, DES, DES-EDE3, AES-256-CBC and AES-128-GCM supported")
 
+// ErrUnsupportedKeyType is returned when attempting to encrypting keys using a key that's not an RSA key
+var ErrUnsupportedKeyType = errors.New("pkcs7: only RSA keys are supported")
+
 // ErrNotEncryptedContent is returned when attempting to Decrypt data that is not encrypted data
 var ErrNotEncryptedContent = errors.New("pkcs7: content data is a decryptable data type")
 
