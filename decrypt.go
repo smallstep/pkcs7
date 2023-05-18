@@ -45,20 +45,8 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 				return nil, err
 			}
 			opts = &rsa.OAEPOptions{Hash: hashFunc}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSAMD5):
-			opts = &rsa.OAEPOptions{Hash: crypto.MD5}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA1):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA1}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA224):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA224}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA256):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA256}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA384):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA384}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA512):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA512}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
-			// not an RSA-OAEP variant; no need to set `opts`.
+			opts = &rsa.PKCS1v15DecryptOptions{}
 		default:
 			return nil, ErrUnsupportedAlgorithm
 		}
