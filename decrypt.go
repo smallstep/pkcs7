@@ -18,6 +18,9 @@ import (
 // ErrUnsupportedAlgorithm tells you when our quick dev assumptions have failed
 var ErrUnsupportedAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA, DES, DES-EDE3, AES-256-CBC and AES-128-GCM supported")
 
+// ErrUnsupportedKeyType is returned when attempting to encrypting keys using a key that's not an RSA key
+var ErrUnsupportedKeyType = errors.New("pkcs7: only RSA keys are supported")
+
 // ErrNotEncryptedContent is returned when attempting to Decrypt data that is not encrypted data
 var ErrNotEncryptedContent = errors.New("pkcs7: content data is a decryptable data type")
 
@@ -42,20 +45,8 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 				return nil, err
 			}
 			opts = &rsa.OAEPOptions{Hash: hashFunc}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSAMD5):
-			opts = &rsa.OAEPOptions{Hash: crypto.MD5}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA1):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA1}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA224):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA224}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA256):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA256}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA384):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA384}
-		case algorithm.Equal(OIDEncryptionAlgorithmRSASHA512):
-			opts = &rsa.OAEPOptions{Hash: crypto.SHA512}
 		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
-			// not an RSA-OAEP variant; no need to set `opts`.
+			opts = &rsa.PKCS1v15DecryptOptions{}
 		default:
 			return nil, ErrUnsupportedAlgorithm
 		}
