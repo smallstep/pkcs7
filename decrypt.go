@@ -18,6 +18,9 @@ import (
 // ErrUnsupportedAlgorithm tells you when our quick dev assumptions have failed
 var ErrUnsupportedAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA, DES, DES-EDE3, AES-256-CBC and AES-128-GCM supported")
 
+// ErrUnsupportedAsymmetricEncryptionAlgorithm is returned when attempting to use an unknown asymmetric encryption algorithm
+var ErrUnsupportedAsymmetricEncryptionAlgorithm = errors.New("pkcs7: cannot decrypt data: only RSA PKCS#1 v1.5 and RSA OAEP are supported")
+
 // ErrUnsupportedKeyType is returned when attempting to encrypting keys using a key that's not an RSA key
 var ErrUnsupportedKeyType = errors.New("pkcs7: only RSA keys are supported")
 
@@ -39,7 +42,6 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 		var opts crypto.DecrypterOpts
 		switch algorithm := recipient.KeyEncryptionAlgorithm.Algorithm; {
 		case algorithm.Equal(OIDEncryptionAlgorithmRSAESOAEP):
-			var hashFunc crypto.Hash
 			hashFunc, err := getHashFuncForKeyEncryptionAlgorithm(recipient.KeyEncryptionAlgorithm)
 			if err != nil {
 				return nil, err
@@ -48,7 +50,7 @@ func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte
 		case algorithm.Equal(OIDEncryptionAlgorithmRSA):
 			opts = &rsa.PKCS1v15DecryptOptions{}
 		default:
-			return nil, ErrUnsupportedAlgorithm
+			return nil, ErrUnsupportedAsymmetricEncryptionAlgorithm
 		}
 		contentKey, err := pkey.Decrypt(rand.Reader, recipient.EncryptedKey, opts)
 		if err != nil {
@@ -75,10 +77,10 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	var rest []byte
 	rest, err := asn1.Unmarshal(keyEncryptionAlgorithm.Parameters.FullBytes, params)
 	if err != nil {
-		return invalidHashFunc, fmt.Errorf("failed unmarshaling key encryption algorithm parameters: %v", err)
+		return invalidHashFunc, fmt.Errorf("pkcs7: failed unmarshaling key encryption algorithm parameters: %v", err)
 	}
 	if len(rest) != 0 {
-		return invalidHashFunc, errors.New("trailing data after RSAES-OAEP parameters")
+		return invalidHashFunc, errors.New("pkcs7: trailing data after RSA OAEP parameters")
 	}
 
 	switch {
@@ -93,7 +95,7 @@ func getHashFuncForKeyEncryptionAlgorithm(keyEncryptionAlgorithm pkix.AlgorithmI
 	case params.HashFunc.Algorithm.Equal(OIDDigestAlgorithmSHA512):
 		return crypto.SHA512, nil
 	default:
-		return invalidHashFunc, errors.New("unsupported hash function for RSA-OAEP")
+		return invalidHashFunc, errors.New("pkcs7: unsupported hash function for RSA OAEP")
 	}
 }
 
@@ -115,7 +117,6 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 		!alg.Equal(OIDEncryptionAlgorithmAES128CBC) &&
 		!alg.Equal(OIDEncryptionAlgorithmAES128GCM) &&
 		!alg.Equal(OIDEncryptionAlgorithmAES256GCM) {
-		fmt.Printf("Unsupported Content Encryption Algorithm: %s\n", alg)
 		return nil, ErrUnsupportedAlgorithm
 	}
 
@@ -202,10 +203,10 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 
 func unpad(data []byte, blocklen int) ([]byte, error) {
 	if blocklen < 1 {
-		return nil, fmt.Errorf("invalid blocklen %d", blocklen)
+		return nil, fmt.Errorf("pkcs7: invalid blocklen %d", blocklen)
 	}
 	if len(data)%blocklen != 0 || len(data) == 0 {
-		return nil, fmt.Errorf("invalid data len %d", len(data))
+		return nil, fmt.Errorf("pkcs7: invalid data len %d", len(data))
 	}
 
 	// the last byte is the length of padding
@@ -215,7 +216,7 @@ func unpad(data []byte, blocklen int) ([]byte, error) {
 	pad := data[len(data)-padlen:]
 	for _, padbyte := range pad {
 		if padbyte != byte(padlen) {
-			return nil, errors.New("invalid padding")
+			return nil, errors.New("pkcs7: invalid padding")
 		}
 	}
 
