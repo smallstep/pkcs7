@@ -725,11 +725,11 @@ func TestAzureAttestationSignatureValidation(t *testing.T) {
 
 	p7, err := Parse(data)
 	if err != nil {
-		t.Fatal("failed parsing attested data", err)
+		t.Errorf("failed parsing attested data: %v", err)
 	}
 
 	err = p7.Verify()
 	if err != nil {
-		t.Fatal("failed verifying data", err)
+		t.Errorf("failed verifying data: %v", err)
 	}
 }
