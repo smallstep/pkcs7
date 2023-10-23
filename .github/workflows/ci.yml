@@ -6,13 +6,13 @@ jobs:
     name: Test
     strategy:
       matrix:
-        go: ['1.12', '1.13', '1.14', '1.15', '1.16']
+        go: ['1.12', '1.13', '1.14', '1.15', '1.16', '1.17', '1.18', '1.19', '1.20', '1.21']
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go }}
         stable: false
