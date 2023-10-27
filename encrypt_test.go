@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"reflect"
 	"testing"
 )
 
@@ -142,5 +143,22 @@ func Test_getParametersForKeyEncryptionAlgorithm(t *testing.T) {
 				t.Errorf("getHashFuncForKeyEncryptionAlgorithm() = %v, want %v", resultHash, tt.args.hash)
 			}
 		})
+	}
+}
+
+func Test_marshalEncryptedContent(t *testing.T) {
+	content := []byte{}
+	got := marshalEncryptedContent(content)
+
+	expected := asn1.RawValue{Class: 2, Tag: 0, IsCompound: false, Bytes: []byte{}, FullBytes: nil}
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("marshalEncryptedContent() = %v, want %v", got, expected)
+	}
+
+	content = []byte{34, 165, 121, 103, 15, 109, 119, 147, 39, 236, 212, 103, 143, 164, 172, 22}
+	got = marshalEncryptedContent(content)
+	expected = asn1.RawValue{Class: 2, Tag: 0, IsCompound: false, Bytes: []byte{34, 165, 121, 103, 15, 109, 119, 147, 39, 236, 212, 103, 143, 164, 172, 22}, FullBytes: nil}
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("marshalEncryptedContent() = %v, want %v", got, expected)
 	}
 }
