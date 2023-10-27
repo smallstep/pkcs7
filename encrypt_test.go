@@ -6,6 +6,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/pem"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"reflect"
 	"testing"
 )
@@ -160,5 +164,70 @@ func Test_marshalEncryptedContent(t *testing.T) {
 	expected = asn1.RawValue{Class: 2, Tag: 0, IsCompound: false, Bytes: []byte{34, 165, 121, 103, 15, 109, 119, 147, 39, 236, 212, 103, 143, 164, 172, 22}, FullBytes: nil}
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("marshalEncryptedContent() = %v, want %v", got, expected)
+	}
+}
+
+func TestEncryptAndDecryptWithOpenSSL(t *testing.T) {
+	tf := UnmarshalTestFixture(RSAOAEPSHA256EncryptedTestFixture) // use existing fixture with cert + key
+
+	content := []byte("this is the content")
+	recipients := []*x509.Certificate{tf.Certificate}
+	currentAlgorithm := ContentEncryptionAlgorithm
+	ContentEncryptionAlgorithm = EncryptionAlgorithmAES256CBC
+	defer func() {
+		ContentEncryptionAlgorithm = currentAlgorithm
+	}()
+	encryptedContent, err := Encrypt(content, recipients)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contentFile, err := ioutil.TempFile("", "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(contentFile.Name())
+
+	err = pem.Encode(contentFile, &pem.Block{Type: "PKCS7", Bytes: encryptedContent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentFile.Close()
+
+	recipientFile, err := ioutil.TempFile("", "content")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(recipientFile.Name())
+
+	err = pem.Encode(recipientFile, &pem.Block{Type: "CERTIFICATE", Bytes: tf.Certificate.Raw})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	privateKey, err := x509.MarshalPKCS8PrivateKey(tf.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = pem.Encode(recipientFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privateKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipientFile.Close()
+
+	// call openssl to decrypt the content
+	opensslCMD := exec.Command("openssl", "cms", "-decrypt",
+		"-inform", "pem",
+		"-in", contentFile.Name(),
+		"-recip", recipientFile.Name(),
+	)
+	out, err := opensslCMD.CombinedOutput()
+	if err != nil {
+		t.Fatalf("openssl command failed with %s: %s", err, out)
+	}
+
+	if !bytes.Equal(content, out) {
+		t.Errorf("EncryptAndDecryptWithOpenSSL() = %v, want %v", out, content)
 	}
 }
