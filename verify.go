@@ -189,6 +189,19 @@ func (p7 *PKCS7) UnmarshalSignedAttribute(attributeType asn1.ObjectIdentifier, o
 	return unmarshalAttribute(attributes, attributeType, out)
 }
 
+// UnmarshalUnsignedAttribute decodes a single attribute from the signer info
+func (p7 *PKCS7) UnmarshalUnsignedAttribute(attributeType asn1.ObjectIdentifier, out interface{}) error {
+	sd, ok := p7.raw.(signedData)
+	if !ok {
+		return errors.New("pkcs7: payload is not signedData content")
+	}
+	if len(sd.SignerInfos) < 1 {
+		return errors.New("pkcs7: payload has no signers")
+	}
+	attributes := sd.SignerInfos[0].UnauthenticatedAttributes
+	return unmarshalAttribute(attributes, attributeType, out)
+}
+
 func parseSignedData(data []byte) (*PKCS7, error) {
 	var sd signedData
 	asn1.Unmarshal(data, &sd)
