@@ -54,15 +54,15 @@ func (p7 *PKCS7) VerifyWithChainAtTime(truststore *x509.CertPool, currentTime ti
 	return nil
 }
 
-// SigningTimeNotValidErr is returned when signing time attribute falls
+// SigningTimeNotValidError is returned when signing time attribute falls
 // outside of the signer certificate validity.
-type SigningTimeNotValidErr struct {
+type SigningTimeNotValidError struct {
 	SigningTime time.Time
 	NotBefore   time.Time // NotBefore of signer
 	NotAfter    time.Time // NotAfter of signer
 }
 
-func (e *SigningTimeNotValidErr) Error() string {
+func (e *SigningTimeNotValidError) Error() string {
 	return fmt.Sprintf("pkcs7: signing time %q is outside of certificate validity %q to %q",
 		e.SigningTime.Format(time.RFC3339),
 		e.NotBefore.Format(time.RFC3339),
@@ -106,7 +106,7 @@ func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPo
 		if err == nil {
 			// signing time found, performing validity check
 			if signingTime.After(ee.NotAfter) || signingTime.Before(ee.NotBefore) {
-				return &SigningTimeNotValidErr{
+				return &SigningTimeNotValidError{
 					SigningTime: signingTime,
 					NotBefore:   ee.NotBefore,
 					NotAfter:    ee.NotAfter,
@@ -162,7 +162,7 @@ func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (e
 		if err == nil {
 			// signing time found, performing validity check
 			if signingTime.After(ee.NotAfter) || signingTime.Before(ee.NotBefore) {
-				return &SigningTimeNotValidErr{
+				return &SigningTimeNotValidError{
 					SigningTime: signingTime,
 					NotBefore:   ee.NotBefore,
 					NotAfter:    ee.NotAfter,
