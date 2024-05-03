@@ -23,9 +23,9 @@ type SignedData struct {
 	encryptionOid       asn1.ObjectIdentifier
 }
 
-// Copy creates a new SignedData struct based on existing PKCS7 signed data.
-func Copy(data *PKCS7, unauthenticatedAttrs ...Attribute) ([]byte, error) {
-	rawData, isSignedData := data.raw.(signedData)
+// CopyWithUnsignedAttributes creates a copy of the PKCS7 struct with different unsigned attributes.
+func (p7 *PKCS7) CopyWithUnsignedAttributes(unauthenticatedAttrs ...Attribute) (*PKCS7, error) {
+	rawData, isSignedData := p7.raw.(signedData)
 	if !isSignedData {
 		return nil, ErrUnsupportedContentType
 	}
@@ -38,15 +38,17 @@ func Copy(data *PKCS7, unauthenticatedAttrs ...Attribute) ([]byte, error) {
 			return nil, err
 		}
 	}
-	inner, err := asn1.Marshal(rawData)
+	certs, err := rawData.Certificates.Parse()
 	if err != nil {
 		return nil, err
 	}
-	outer := contentInfo{
-		ContentType: OIDSignedData,
-		Content:     asn1.RawValue{Class: 2, Tag: 0, Bytes: inner, IsCompound: true},
-	}
-	return asn1.Marshal(outer)
+	return &PKCS7{
+		Content:      p7.Content,
+		Certificates: certs,
+		CRLs:         rawData.CRLs,
+		Signers:      rawData.SignerInfos,
+		raw:          rawData,
+	}, nil
 }
 
 // NewSignedData takes data and initializes a PKCS7 SignedData struct that is

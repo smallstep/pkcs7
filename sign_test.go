@@ -265,7 +265,7 @@ func fromHex(s string) *big.Int {
 	return result
 }
 
-func TestCopy(t *testing.T) {
+func TestCopyWithUnsignedAttributes(t *testing.T) {
 	content := []byte("Hello World")
 	rootCert, err := createTestCertificateByIssuer("PKCS7 Test Root CA", nil, x509.SHA256WithRSA, true)
 	if err != nil {
@@ -301,16 +301,12 @@ func TestCopy(t *testing.T) {
 	}
 	testOid := asn1.ObjectIdentifier{2, 3, 4, 5, 6, 7}
 	testValue := "TestValue"
-	copied, err := Copy(p7, Attribute{
+	p7, err = p7.CopyWithUnsignedAttributes(Attribute{
 		Type:  testOid,
 		Value: testValue,
 	})
 	if err != nil {
 		t.Fatalf("cannot copy signed data: %s", err)
-	}
-	p7, err = Parse(copied)
-	if err != nil {
-		t.Fatalf("cannot parse copied data: %s", err)
 	}
 
 	if !bytes.Equal(content, p7.Content) {
