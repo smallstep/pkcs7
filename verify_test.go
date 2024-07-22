@@ -39,7 +39,7 @@ func TestVerify(t *testing.T) {
 func TestInvalidSigningTime(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		t.Errorf("failed generating ECDSA key: %v", err)
+		t.Fatalf("failed generating ECDSA key: %v", err)
 	}
 
 	// define certificate validity to a timeframe in the past, so that
@@ -59,50 +59,50 @@ func TestInvalidSigningTime(t *testing.T) {
 
 	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
 	if err != nil {
-		t.Errorf("failed creating certificate: %v", err)
+		t.Fatalf("failed creating certificate: %v", err)
 	}
 
 	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		t.Errorf("failed parsing certificate: %v", err)
+		t.Fatalf("failed parsing certificate: %v", err)
 	}
 
 	toBeSignedData, err := NewSignedData([]byte("test-invalid-signing-time"))
 	if err != nil {
-		t.Errorf("failed creating signed data: %v", err)
+		t.Fatalf("failed creating signed data: %v", err)
 	}
 
 	// add the signer cert, and add attributes, including the signing
 	// time attribute, containing the current time
 	if err := toBeSignedData.AddSigner(cert, key, SignerInfoConfig{}); err != nil {
-		t.Errorf("failed adding signer: %v", err)
+		t.Fatalf("failed adding signer: %v", err)
 	}
 
 	// finalizes the signed data
 	signedData, err := toBeSignedData.Finish()
 	if err != nil {
-		t.Errorf("failed signing data: %v", err)
+		t.Fatalf("failed signing data: %v", err)
 	}
 
 	p7, err := Parse(signedData)
 	if err != nil {
-		t.Errorf("failed parsing signed data: %v", err)
+		t.Fatalf("failed parsing signed data: %v", err)
 	}
 
 	signerCert := p7.GetOnlySigner()
 	if !bytes.Equal(cert.Signature, signerCert.Signature) {
-		t.Error("unexpected signer certificate obtained from P7 data")
+		t.Fatal("unexpected signer certificate obtained from P7 data")
 	}
 
 	// verify without a chain (self-signed cert), at time.Now()
 	err = p7.VerifyWithChainAtTime(nil, time.Now())
 	if err == nil {
-		t.Error("expected verification error, but got nil")
+		t.Fatal("expected verification error, but got nil")
 	}
 
 	signingTimeErr, ok := err.(*SigningTimeNotValidError)
 	if !ok {
-		t.Errorf("expected *SigningTimeNotValidError, but got %T", err)
+		t.Fatalf("expected *SigningTimeNotValidError, but got %T", err)
 	}
 
 	if signingTimeErr.NotBefore != notBefore {
@@ -116,12 +116,12 @@ func TestInvalidSigningTime(t *testing.T) {
 	// verify without a chain (self-signed cert), but without specifying the time
 	err = p7.VerifyWithChain(nil)
 	if err == nil {
-		t.Error("expected verification error, but got nil")
+		t.Fatal("expected verification error, but got nil")
 	}
 
 	signingTimeErr, ok = err.(*SigningTimeNotValidError)
 	if !ok {
-		t.Errorf("expected *SigningTimeNotValidError, but got %T", err)
+		t.Fatalf("expected *SigningTimeNotValidError, but got %T", err)
 	}
 
 	if signingTimeErr.NotBefore != notBefore {
