@@ -54,6 +54,21 @@ func (p7 *PKCS7) VerifyWithChainAtTime(truststore *x509.CertPool, currentTime ti
 	return nil
 }
 
+// SigningTimeNotValidError is returned when signing time attribute falls
+// outside of the signer certificate validity.
+type SigningTimeNotValidError struct {
+	SigningTime time.Time
+	NotBefore   time.Time // NotBefore of signer
+	NotAfter    time.Time // NotAfter of signer
+}
+
+func (e *SigningTimeNotValidError) Error() string {
+	return fmt.Sprintf("pkcs7: signing time %q is outside of certificate validity %q to %q",
+		e.SigningTime.Format(time.RFC3339),
+		e.NotBefore.Format(time.RFC3339),
+		e.NotAfter.Format(time.RFC3339))
+}
+
 func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool, currentTime time.Time) (err error) {
 	signedData := p7.Content
 	ee := getCertFromCertsByIssuerAndSerial(p7.Certificates, signer.IssuerAndSerialNumber)
@@ -91,10 +106,11 @@ func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPo
 		if err == nil {
 			// signing time found, performing validity check
 			if signingTime.After(ee.NotAfter) || signingTime.Before(ee.NotBefore) {
-				return fmt.Errorf("pkcs7: signing time %q is outside of certificate validity %q to %q",
-					signingTime.Format(time.RFC3339),
-					ee.NotBefore.Format(time.RFC3339),
-					ee.NotAfter.Format(time.RFC3339))
+				return &SigningTimeNotValidError{
+					SigningTime: signingTime,
+					NotBefore:   ee.NotBefore,
+					NotAfter:    ee.NotAfter,
+				}
 			}
 		}
 	}
@@ -146,10 +162,11 @@ func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (e
 		if err == nil {
 			// signing time found, performing validity check
 			if signingTime.After(ee.NotAfter) || signingTime.Before(ee.NotBefore) {
-				return fmt.Errorf("pkcs7: signing time %q is outside of certificate validity %q to %q",
-					signingTime.Format(time.RFC3339),
-					ee.NotBefore.Format(time.RFC3339),
-					ee.NotAfter.Format(time.RFC3339))
+				return &SigningTimeNotValidError{
+					SigningTime: signingTime,
+					NotBefore:   ee.NotBefore,
+					NotAfter:    ee.NotAfter,
+				}
 			}
 		}
 	}
