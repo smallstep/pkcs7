@@ -3,12 +3,16 @@ package pkcs7
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"os/exec"
 	"testing"
@@ -25,10 +29,107 @@ func TestVerify(t *testing.T) {
 	if err := p7.Verify(); err != nil {
 		t.Errorf("Verify failed with error: %v", err)
 	}
+
 	expected := []byte("We the People")
 	if !bytes.Equal(p7.Content, expected) {
 		t.Errorf("Signed content does not match.\n\tExpected:%s\n\tActual:%s", expected, p7.Content)
+	}
+}
 
+func TestInvalidSigningTime(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("failed generating ECDSA key: %v", err)
+	}
+
+	// define certificate validity to a timeframe in the past, so that
+	// the certificate itself is not valid at the time of signing.
+	notBefore := time.Now().UTC().Round(time.Minute).Add(-2 * time.Hour)
+	notAfter := time.Now().UTC().Round(time.Minute).Add(-1 * time.Hour)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "TestInvalidSigningtime",
+		},
+		NotBefore:   notBefore,
+		NotAfter:    notAfter,
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection},
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		t.Fatalf("failed creating certificate: %v", err)
+	}
+
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatalf("failed parsing certificate: %v", err)
+	}
+
+	toBeSignedData, err := NewSignedData([]byte("test-invalid-signing-time"))
+	if err != nil {
+		t.Fatalf("failed creating signed data: %v", err)
+	}
+
+	// add the signer cert, and add attributes, including the signing
+	// time attribute, containing the current time
+	if err := toBeSignedData.AddSigner(cert, key, SignerInfoConfig{}); err != nil {
+		t.Fatalf("failed adding signer: %v", err)
+	}
+
+	// finalizes the signed data
+	signedData, err := toBeSignedData.Finish()
+	if err != nil {
+		t.Fatalf("failed signing data: %v", err)
+	}
+
+	p7, err := Parse(signedData)
+	if err != nil {
+		t.Fatalf("failed parsing signed data: %v", err)
+	}
+
+	signerCert := p7.GetOnlySigner()
+	if !bytes.Equal(cert.Signature, signerCert.Signature) {
+		t.Fatal("unexpected signer certificate obtained from P7 data")
+	}
+
+	// verify without a chain (self-signed cert), at time.Now()
+	err = p7.VerifyWithChainAtTime(nil, time.Now())
+	if err == nil {
+		t.Fatal("expected verification error, but got nil")
+	}
+
+	signingTimeErr, ok := err.(*SigningTimeNotValidError)
+	if !ok {
+		t.Fatalf("expected *SigningTimeNotValidError, but got %T", err)
+	}
+
+	if signingTimeErr.NotBefore != notBefore {
+		t.Errorf("expected notBefore to be %q, but got %q", notBefore, signingTimeErr.NotBefore)
+	}
+
+	if signingTimeErr.NotAfter != notAfter {
+		t.Errorf("expected notAfter to be %q, but got %q", notAfter, signingTimeErr.NotAfter)
+	}
+
+	// verify without a chain (self-signed cert), but without specifying the time
+	err = p7.VerifyWithChain(nil)
+	if err == nil {
+		t.Fatal("expected verification error, but got nil")
+	}
+
+	signingTimeErr, ok = err.(*SigningTimeNotValidError)
+	if !ok {
+		t.Fatalf("expected *SigningTimeNotValidError, but got %T", err)
+	}
+
+	if signingTimeErr.NotBefore != notBefore {
+		t.Errorf("expected notBefore to be %q, but got %q", notBefore, signingTimeErr.NotBefore)
+	}
+
+	if signingTimeErr.NotAfter != notAfter {
+		t.Errorf("expected notAfter to be %q, but got %q", notAfter, signingTimeErr.NotAfter)
 	}
 }
 

@@ -54,8 +54,8 @@ func (p7 *PKCS7) VerifyWithChainAtTime(truststore *x509.CertPool, currentTime ti
 	return nil
 }
 
-// SigningTimeNotValidError is returned when signing time attribute falls
-// outside of the signer certificate validity.
+// SigningTimeNotValidError is returned when the signing time attribute
+// falls outside of the signer certificate validity.
 type SigningTimeNotValidError struct {
 	SigningTime time.Time
 	NotBefore   time.Time // NotBefore of signer
