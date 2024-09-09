@@ -7,7 +7,6 @@ package legacyx509
 import (
 	"bytes"
 	"crypto/dsa"
-	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -296,13 +295,13 @@ func parsePublicKey(keyData *publicKeyInfo) (interface{}, error) {
 			return nil, errors.New("x509: wrong Ed25519 public key size")
 		}
 		return ed25519.PublicKey(der), nil
-	case oid.Equal(oidPublicKeyX25519):
-		// RFC 8410, Section 3
-		// > For all of the OIDs, the parameters MUST be absent.
-		if len(params.FullBytes) != 0 {
-			return nil, errors.New("x509: X25519 key encoded with illegal parameters")
-		}
-		return ecdh.X25519().NewPublicKey(der)
+	// case oid.Equal(oidPublicKeyX25519):
+	// 	// RFC 8410, Section 3
+	// 	// > For all of the OIDs, the parameters MUST be absent.
+	// 	if len(params.FullBytes) != 0 {
+	// 		return nil, errors.New("x509: X25519 key encoded with illegal parameters")
+	// 	}
+	// 	return ecdh.X25519().NewPublicKey(der)
 	case oid.Equal(oidPublicKeyDSA):
 		y := new(big.Int)
 		if !der.ReadASN1Integer(y) {
