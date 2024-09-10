@@ -127,6 +127,17 @@ func (o *OID) UnmarshalText(text []byte) error {
 	return o.unmarshalOIDText(string(text))
 }
 
+// cutString slices s around the first instance of sep,
+// returning the text before and after sep.
+// The found result reports whether sep appears in s.
+// If sep does not appear in s, cut returns s, "", false.
+func cutString(s, sep string) (before, after string, found bool) {
+	if i := strings.Index(s, sep); i >= 0 {
+		return s[:i], s[i+len(sep):], true
+	}
+	return s, "", false
+}
+
 func (o *OID) unmarshalOIDText(oid string) error {
 	// (*big.Int).SetString allows +/- signs, but we don't want
 	// to allow them in the string representation of Object Identifier, so
@@ -144,11 +155,11 @@ func (o *OID) unmarshalOIDText(oid string) error {
 	)
 
 	var nextComponentExists bool
-	firstNum, oid, nextComponentExists = strings.Cut(oid, ".")
+	firstNum, oid, nextComponentExists = cutString(oid, ".")
 	if !nextComponentExists {
 		return errInvalidOID
 	}
-	secondNum, oid, nextComponentExists = strings.Cut(oid, ".")
+	secondNum, oid, nextComponentExists = cutString(oid, ".")
 
 	var (
 		first  = big.NewInt(0)
@@ -173,7 +184,7 @@ func (o *OID) unmarshalOIDText(oid string) error {
 
 	for nextComponentExists {
 		var strNum string
-		strNum, oid, nextComponentExists = strings.Cut(oid, ".")
+		strNum, oid, nextComponentExists = cutString(oid, ".")
 		b, ok := big.NewInt(0).SetString(strNum, 10)
 		if !ok {
 			return errInvalidOID
@@ -195,9 +206,19 @@ func (o OID) MarshalBinary() ([]byte, error) {
 	return o.AppendBinary(nil)
 }
 
+// cloneBytes returns a copy of b[:len(b)].
+// The result may have additional unused capacity.
+// Clone(nil) returns nil.
+func cloneBytes(b []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	return append([]byte{}, b...)
+}
+
 // UnmarshalBinary implements [encoding.BinaryUnmarshaler]
 func (o *OID) UnmarshalBinary(b []byte) error {
-	oid, ok := newOIDFromDER(bytes.Clone(b))
+	oid, ok := newOIDFromDER(cloneBytes(b))
 	if !ok {
 		return errInvalidOID
 	}
