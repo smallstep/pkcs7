@@ -11,8 +11,50 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 )
+
+// SetDefaultDigestAlgorithm sets the default digest algorithm
+// to be used for signing operations on [SignedData].
+//
+// This must be called before creating a new instance of [SignedData]
+// using [NewSignedData].
+func SetDefaultDigestAlgorithm(d asn1.ObjectIdentifier) error {
+	defaultMessageDigestAlgorithm.Lock()
+	defer defaultMessageDigestAlgorithm.Unlock()
+	switch {
+	case d.Equal(OIDDigestAlgorithmSHA1), d.Equal(OIDDigestAlgorithmSHA256), d.Equal(OIDDigestAlgorithmSHA384),
+		d.Equal(OIDDigestAlgorithmSHA512), d.Equal(OIDDigestAlgorithmSHA224),
+		d.Equal(OIDDigestAlgorithmDSA), d.Equal(OIDDigestAlgorithmDSASHA1),
+		d.Equal(OIDDigestAlgorithmECDSASHA1), d.Equal(OIDDigestAlgorithmECDSASHA256),
+		d.Equal(OIDDigestAlgorithmECDSASHA384), d.Equal(OIDDigestAlgorithmECDSASHA512):
+		break
+	default:
+		return fmt.Errorf("unsupported message digest algorithm %v", d)
+	}
+
+	defaultMessageDigestAlgorithm.oid = d
+
+	return nil
+}
+
+var defaultMessageDigestAlgorithm struct {
+	sync.RWMutex
+	oid asn1.ObjectIdentifier
+}
+
+func defaultMessageDigestAlgorithmOID() asn1.ObjectIdentifier {
+	defaultMessageDigestAlgorithm.RLock()
+	defer defaultMessageDigestAlgorithm.RUnlock()
+
+	oid := defaultMessageDigestAlgorithm.oid
+	if oid.Equal(asn1.ObjectIdentifier{}) {
+		return OIDDigestAlgorithmSHA1
+	}
+
+	return oid
+}
 
 // SignedData is an opaque data structure for creating signed data payloads
 type SignedData struct {
@@ -39,7 +81,7 @@ func NewSignedData(data []byte) (*SignedData, error) {
 		ContentInfo: ci,
 		Version:     1,
 	}
-	return &SignedData{sd: sd, data: data, digestOid: OIDDigestAlgorithmSHA1}, nil
+	return &SignedData{sd: sd, data: data, digestOid: defaultMessageDigestAlgorithmOID()}, nil
 }
 
 // SignerInfoConfig are optional values to include when adding a signer
