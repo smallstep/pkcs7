@@ -18,4 +18,4 @@ jobs:
     - name: Test
       run: go vet . && go build . && go test -count=1 -covermode=count -coverprofile=coverage.out .
       env:
-        GODEBUG: x509sha1=1
+        GODEBUG: x509sha1=1 # enable SHA1; it's used in the older fixtures

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	_ "crypto/sha1" // for crypto.SHA1
 
@@ -215,7 +216,7 @@ func parseEncryptedData(data []byte) (*PKCS7, error) {
 	}, nil
 }
 
-// EnableFallbackLegacyX509CertificateParser parsing certificates
+// EnableFallbackLegacyX509CertificateParser enables parsing certificates
 // embedded in a PKCS7 message using the logic from crypto/x509 from before
 // Go 1.23. Go 1.23 introduced a breaking change in case a certificate contains
 // a critical authority key identifier, which is the correct thing to do based
@@ -226,12 +227,28 @@ func parseEncryptedData(data []byte) (*PKCS7, error) {
 // See https://go-review.googlesource.com/c/go/+/562341 for the change in the
 // Go source.
 //
-// When [EnableFallbackLegacyX509CertificateParser] is set to true, it'll first
+// When [EnableFallbackLegacyX509CertificateParser] is called with true, it
+// enables parsing using the legacy crypto/x509 certificate parser. It'll first
 // try to parse the certificates using the regular Go crypto/x509 package, but
 // if it fails on the above case, it'll retry parsing the certificates using a
 // copy of the crypto/x509 package based on Go 1.23, but skips checking the
 // authority key identifier extension being critical or not.
-var EnableFallbackLegacyX509CertificateParser bool
+func EnableFallbackLegacyX509CertificateParser(v bool) {
+	legacyX509CertificateParser.Lock()
+	legacyX509CertificateParser.enabled = v
+	legacyX509CertificateParser.Unlock()
+}
+
+var legacyX509CertificateParser struct {
+	sync.RWMutex
+	enabled bool
+}
+
+func isLegacyX509ParserEnabled() bool {
+	legacyX509CertificateParser.RLock()
+	defer legacyX509CertificateParser.RUnlock()
+	return legacyX509CertificateParser.enabled
+}
 
 func (raw rawCertificates) Parse() ([]*x509.Certificate, error) {
 	if len(raw.Raw) == 0 {
@@ -245,7 +262,7 @@ func (raw rawCertificates) Parse() ([]*x509.Certificate, error) {
 
 	certificates, err := x509.ParseCertificates(val.Bytes)
 	if err != nil && err.Error() == "x509: authority key identifier incorrectly marked critical" {
-		if EnableFallbackLegacyX509CertificateParser {
+		if isLegacyX509ParserEnabled() {
 			certificates, err = legacyx509.ParseCertificates(val.Bytes)
 		}
 	}
