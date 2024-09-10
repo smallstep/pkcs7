@@ -28,12 +28,12 @@ func TestParseWindowsSCEPCertificateRequest(t *testing.T) {
 	}
 
 	// enable the legacy parser when Go 1.23 or newer is used, and parse it again
-	EnableLegacyFallbackX509CertificateParser = true
+	EnableFallbackLegacyX509CertificateParser = true
 	p7, err = Parse(data)
 	if err != nil {
 		t.Errorf("failed parsing SCEP request data with legacy X509 certificate parser enabled: %v", err)
 	}
-	EnableLegacyFallbackX509CertificateParser = false
+	EnableFallbackLegacyX509CertificateParser = false
 
 	if len(p7.Certificates) != 1 {
 		t.Errorf("expected a single certificate; got %d", len(p7.Certificates))
