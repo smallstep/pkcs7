@@ -6,7 +6,7 @@ jobs:
     name: Test
     strategy:
       matrix:
-        go: ['1.14', '1.15', '1.16', '1.23']
+        go: ['1.14', '1.15', '1.16', '1.21', '1.22', '1.23']
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -15,7 +15,6 @@ jobs:
     - uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go }}
-        stable: false
     - name: Test
       run: go vet . && go build . && go test -count=1 -covermode=count -coverprofile=coverage.out .
       env:
