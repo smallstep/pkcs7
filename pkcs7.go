@@ -216,7 +216,7 @@ func parseEncryptedData(data []byte) (*PKCS7, error) {
 	}, nil
 }
 
-// EnableFallbackLegacyX509CertificateParser enables parsing certificates
+// SetFallbackLegacyX509CertificateParserEnabled enables parsing certificates
 // embedded in a PKCS7 message using the logic from crypto/x509 from before
 // Go 1.23. Go 1.23 introduced a breaking change in case a certificate contains
 // a critical authority key identifier, which is the correct thing to do based
@@ -227,13 +227,13 @@ func parseEncryptedData(data []byte) (*PKCS7, error) {
 // See https://go-review.googlesource.com/c/go/+/562341 for the change in the
 // Go source.
 //
-// When [EnableFallbackLegacyX509CertificateParser] is called with true, it
+// When [SetFallbackLegacyX509CertificateParserEnabled] is called with true, it
 // enables parsing using the legacy crypto/x509 certificate parser. It'll first
 // try to parse the certificates using the regular Go crypto/x509 package, but
 // if it fails on the above case, it'll retry parsing the certificates using a
 // copy of the crypto/x509 package based on Go 1.23, but skips checking the
 // authority key identifier extension being critical or not.
-func EnableFallbackLegacyX509CertificateParser(v bool) {
+func SetFallbackLegacyX509CertificateParserEnabled(v bool) {
 	legacyX509CertificateParser.Lock()
 	legacyX509CertificateParser.enabled = v
 	legacyX509CertificateParser.Unlock()
