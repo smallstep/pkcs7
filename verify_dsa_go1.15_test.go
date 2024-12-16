@@ -1,6 +1,9 @@
 //go:build !go1.16
 // +build !go1.16
 
+// Support for DSA was deprecated in Go 1.16, so the tests in this file will only be
+// executed when a Go version below that is used. Also see https://github.com/golang/go/issues/4033.
+
 package pkcs7
 
 import (
