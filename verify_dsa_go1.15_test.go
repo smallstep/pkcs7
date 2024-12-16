@@ -1,4 +1,8 @@
-// +build go1.11 go1.12 go1.13 go1.14 go1.15
+//go:build !go1.16
+// +build !go1.16
+
+// Support for DSA was deprecated in Go 1.16, so the tests in this file will only be
+// executed when a Go version below that is used. Also see https://github.com/golang/go/issues/4033.
 
 package pkcs7
 
@@ -134,27 +138,6 @@ vKtcNrhXuXmUr7v6OuqC+VdMCz0HgmdRWVeOutRZT+ZxBxCBgLRJFnEj6EwoFhO3
 zwkyjMim4TwWeotUfI0o4KOuHiuzpnWRbqN/C/ohNWLx+2J6ASQ7zKTxvqhRkImo
 g9/hWuWfBpKLZl6Ae1UlZAFMO/7PSSoEFgIUfW4aPdQBn9gJZp2KuNpzgHzvfsE=
 -----END PRIVATE KEY-----`)
-
-var dsaPublicCert = []byte(`-----BEGIN CERTIFICATE-----
-MIIDOjCCAvWgAwIBAgIEPCY/UDANBglghkgBZQMEAwIFADBsMRAwDgYDVQQGEwdV
-bmtub3duMRAwDgYDVQQIEwdVbmtub3duMRAwDgYDVQQHEwdVbmtub3duMRAwDgYD
-VQQKEwdVbmtub3duMRAwDgYDVQQLEwdVbmtub3duMRAwDgYDVQQDEwdVbmtub3du
-MB4XDTE4MTAyMjEzNDMwN1oXDTQ2MDMwOTEzNDMwN1owbDEQMA4GA1UEBhMHVW5r
-bm93bjEQMA4GA1UECBMHVW5rbm93bjEQMA4GA1UEBxMHVW5rbm93bjEQMA4GA1UE
-ChMHVW5rbm93bjEQMA4GA1UECxMHVW5rbm93bjEQMA4GA1UEAxMHVW5rbm93bjCC
-AbgwggEsBgcqhkjOOAQBMIIBHwKBgQD9f1OBHXUSKVLfSpwu7OTn9hG3UjzvRADD
-Hj+AtlEmaUVdQCJR+1k9jVj6v8X1ujD2y5tVbNeBO4AdNG/yZmC3a5lQpaSfn+gE
-exAiwk+7qdf+t8Yb+DtX58aophUPBPuD9tPFHsMCNVQTWhaRMvZ1864rYdcq7/Ii
-Axmd0UgBxwIVAJdgUI8VIwvMspK5gqLrhAvwWBz1AoGBAPfhoIXWmz3ey7yrXDa4
-V7l5lK+7+jrqgvlXTAs9B4JnUVlXjrrUWU/mcQcQgYC0SRZxI+hMKBYTt88JMozI
-puE8FnqLVHyNKOCjrh4rs6Z1kW6jfwv6ITVi8ftiegEkO8yk8b6oUZCJqIPf4Vrl
-nwaSi2ZegHtVJWQBTDv+z0kqA4GFAAKBgQDCriMPbEVBoRK4SOUeFwg7+VRf4TTp
-rcOQC9IVVoCjXzuWEGrp3ZI7YWJSpFnSch4lk29RH8O0HpI/NOzKnOBtnKr782pt
-1k/bJVMH9EaLd6MKnAVjrCDMYBB0MhebZ8QHY2elZZCWoqDYAcIDOsEx+m4NLErT
-ypPnjS5M0jm1PKMhMB8wHQYDVR0OBBYEFC0Yt5XdM0Kc95IX8NQ8XRssGPx7MA0G
-CWCGSAFlAwQDAgUAAzAAMC0CFQCIgQtrZZ9hdZG1ROhR5hc8nYEmbgIUAIlgC688
-qzy/7yePTlhlpj+ahMM=
------END CERTIFICATE-----`)
 
 type DSATestFixture struct {
 	Input       []byte
