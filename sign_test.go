@@ -285,3 +285,63 @@ func fromHex(s string) *big.Int {
 	}
 	return result
 }
+
+func TestCopyWithUnsignedAttributes(t *testing.T) {
+	content := []byte("Hello World")
+	rootCert, err := createTestCertificateByIssuer("PKCS7 Test Root CA", nil, x509.SHA256WithRSA, true)
+	if err != nil {
+		t.Fatalf("cannot generate root cert: %s", err)
+	}
+	truststore := x509.NewCertPool()
+	truststore.AddCert(rootCert.Certificate)
+	signerCert, err := createTestCertificateByIssuer("PKCS7 Test Signer Cert", rootCert, x509.SHA256WithRSA, false)
+	if err != nil {
+		t.Fatalf("cannot generate signer cert: %s", err)
+	}
+	toBeSigned, err := NewSignedData(content)
+	if err != nil {
+		t.Fatalf("cannot initialize signed data: %s", err)
+	}
+
+	// Set the digest to match the end entity cert
+	signerDigest, _ := getDigestOIDForSignatureAlgorithm(signerCert.Certificate.SignatureAlgorithm)
+	toBeSigned.SetDigestAlgorithm(signerDigest)
+
+	if err := toBeSigned.AddSignerChain(signerCert.Certificate, *signerCert.PrivateKey, nil, SignerInfoConfig{}); err != nil {
+		t.Fatalf("cannot add signer: %s", err)
+	}
+	signed, err := toBeSigned.Finish()
+	if err != nil {
+		t.Fatalf("cannot finish signing data: %s", err)
+	}
+	pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: signed})
+
+	p7, err := Parse(signed)
+	if err != nil {
+		t.Fatalf("cannot parse signed data: %s", err)
+	}
+	testOid := asn1.ObjectIdentifier{2, 3, 4, 5, 6, 7}
+	testValue := "TestValue"
+	p7, err = p7.CopyWithUnsignedAttributes(Attribute{
+		Type:  testOid,
+		Value: testValue,
+	})
+	if err != nil {
+		t.Fatalf("cannot copy signed data: %s", err)
+	}
+
+	if !bytes.Equal(content, p7.Content) {
+		t.Errorf("content was not found in the copied data:\n\tExpected: %s\n\tActual: %s", content, p7.Content)
+	}
+	if err := p7.VerifyWithChain(truststore); err != nil {
+		t.Errorf("cannot verify copied data: %s", err)
+	}
+
+	var copiedValue string
+	if err := p7.UnmarshalUnsignedAttribute(testOid, &copiedValue); err != nil {
+		t.Fatalf("could not unmarshal attribute: %s", err)
+	}
+	if copiedValue != testValue {
+		t.Errorf("incorrect attribute value: %s", copiedValue)
+	}
+}

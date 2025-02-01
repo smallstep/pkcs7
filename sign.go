@@ -23,6 +23,34 @@ type SignedData struct {
 	encryptionOid       asn1.ObjectIdentifier
 }
 
+// CopyWithUnsignedAttributes creates a copy of the PKCS7 struct with different unsigned attributes.
+func (p7 *PKCS7) CopyWithUnsignedAttributes(unauthenticatedAttrs ...Attribute) (*PKCS7, error) {
+	rawData, isSignedData := p7.raw.(signedData)
+	if !isSignedData {
+		return nil, ErrUnsupportedContentType
+	}
+
+	// Make a copy of the signer infos since we change them
+	rawData.SignerInfos = append([]signerInfo{}, rawData.SignerInfos...)
+	for i := range rawData.SignerInfos {
+		err := rawData.SignerInfos[i].SetUnauthenticatedAttributes(unauthenticatedAttrs)
+		if err != nil {
+			return nil, err
+		}
+	}
+	certs, err := rawData.Certificates.Parse()
+	if err != nil {
+		return nil, err
+	}
+	return &PKCS7{
+		Content:      p7.Content,
+		Certificates: certs,
+		CRLs:         rawData.CRLs,
+		Signers:      rawData.SignerInfos,
+		raw:          rawData,
+	}, nil
+}
+
 // NewSignedData takes data and initializes a PKCS7 SignedData struct that is
 // ready to be signed via AddSigner. The digest algorithm is set to SHA1 by default
 // and can be changed by calling SetDigestAlgorithm.

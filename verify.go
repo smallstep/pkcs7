@@ -206,6 +206,19 @@ func (p7 *PKCS7) UnmarshalSignedAttribute(attributeType asn1.ObjectIdentifier, o
 	return unmarshalAttribute(attributes, attributeType, out)
 }
 
+// UnmarshalUnsignedAttribute decodes a single attribute from the signer info
+func (p7 *PKCS7) UnmarshalUnsignedAttribute(attributeType asn1.ObjectIdentifier, out interface{}) error {
+	sd, ok := p7.raw.(signedData)
+	if !ok {
+		return errors.New("pkcs7: payload is not signedData content")
+	}
+	if len(sd.SignerInfos) < 1 {
+		return errors.New("pkcs7: payload has no signers")
+	}
+	attributes := sd.SignerInfos[0].UnauthenticatedAttributes
+	return unmarshalAttribute(attributes, attributeType, out)
+}
+
 func parseSignedData(data []byte) (*PKCS7, error) {
 	var sd signedData
 	asn1.Unmarshal(data, &sd)
@@ -354,6 +367,14 @@ func getCertFromCertsByIssuerAndSerial(certs []*x509.Certificate, ias issuerAndS
 	return nil
 }
 
+type AttributeNotFoundError struct {
+	AttributeType asn1.ObjectIdentifier
+}
+
+func (a AttributeNotFoundError) Error() string {
+	return fmt.Sprintf("pkcs7: attribute %s does not exist", a.AttributeType)
+}
+
 func unmarshalAttribute(attrs []attribute, attributeType asn1.ObjectIdentifier, out interface{}) error {
 	for _, attr := range attrs {
 		if attr.Type.Equal(attributeType) {
@@ -361,5 +382,5 @@ func unmarshalAttribute(attrs []attribute, attributeType asn1.ObjectIdentifier, 
 			return err
 		}
 	}
-	return errors.New("pkcs7: attribute type not in attributes")
+	return AttributeNotFoundError{AttributeType: attributeType}
 }
