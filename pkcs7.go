@@ -12,6 +12,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"hash"
 	"sort"
 	"sync"
 
@@ -26,6 +27,7 @@ type PKCS7 struct {
 	Certificates []*x509.Certificate
 	CRLs         []pkix.CertificateList
 	Signers      []signerInfo
+	HashCalc     func(hash.Hash, []byte) []byte
 	raw          interface{}
 }
 
