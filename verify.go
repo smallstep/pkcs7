@@ -7,6 +7,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"hash"
 	"time"
 )
 
@@ -90,12 +91,9 @@ func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPo
 			return err
 		}
 		h := hash.New()
-		var computed []byte
-		if p7.HashCalc != nil {
-			computed = p7.HashCalc(h, p7.Content)
-		} else {
-			h.Write(p7.Content)
-			computed = h.Sum(nil)
+		computed, err := p7.calculateHash(h, p7.Content)
+		if err != nil {
+			return err
 		}
 		if subtle.ConstantTimeCompare(digest, computed) != 1 {
 			return &MessageDigestMismatchError{
@@ -151,12 +149,9 @@ func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (e
 			return err
 		}
 		h := hash.New()
-		var computed []byte
-		if p7.HashCalc != nil {
-			computed = p7.HashCalc(h, p7.Content)
-		} else {
-			h.Write(p7.Content)
-			computed = h.Sum(nil)
+		computed, err := p7.calculateHash(h, p7.Content)
+		if err != nil {
+			return err
 		}
 		if subtle.ConstantTimeCompare(digest, computed) != 1 {
 			return &MessageDigestMismatchError{
@@ -372,4 +367,14 @@ func unmarshalAttribute(attrs []attribute, attributeType asn1.ObjectIdentifier, 
 		}
 	}
 	return errors.New("pkcs7: attribute type not in attributes")
+}
+
+func (p7 *PKCS7) calculateHash(h hash.Hash, content []byte) (computed []byte, err error) {
+	if p7.Hasher != nil {
+		computed, err = p7.Hasher.Hash(h, content)
+	} else {
+		h.Write(content)
+		computed = h.Sum(nil)
+	}
+	return
 }

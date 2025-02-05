@@ -11,7 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"hash"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -183,7 +185,7 @@ JBOFyaCnMotGNioSHY5hAkEAxyXcNixQ2RpLXJTQZtwnbk0XDcbgB+fBgXnv/4f3
 BCvcu85DqJeJyQv44Oe1qsXEX9BfcQIOVaoep35RPlKi9g==
 -----END PRIVATE KEY-----`
 
-func TestVerifyWithHashCalcFunc(t *testing.T) {
+func TestVerifyWithHasher(t *testing.T) {
 	fixture := UnmarshalTestFixture(HashCalcSignedTestFixture)
 	p7, err := Parse(fixture.Input)
 	if err != nil {
@@ -192,22 +194,54 @@ func TestVerifyWithHashCalcFunc(t *testing.T) {
 
 	const longBuffer = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam a molestie odio, id accumsan dolor. Praesent ultricies enim et pharetra molestie. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur vitae pellentesque tortor. Curabitur nulla mi, semper non lectus nec, auctor euismod tellus. Nunc vestibulum nisi quis felis efficitur, vel finibus nunc vehicula. Mauris ipsum mi, eleifend in urna non, pellentesque facilisis turpis. Ut eleifend viverra imperdiet. Vestibulum ut ligula non nunc vestibulum lobortis. Curabitur at elementum nisl. Sed facilisis ligula in pulvinar aliquet. Sed semper interdum ipsum quis hendrerit."
 	reader := bytes.NewReader([]byte(longBuffer))
-	p7.HashCalc = func(h hash.Hash, b []byte) []byte {
-		bufferSize := 128
-		buffer := make([]byte, bufferSize)
-		for {
-			count, err := reader.Read(buffer)
-			if err != nil {
-				break
-			}
-			h.Write(buffer[:count])
-		}
-		return h.Sum(nil)
-	}
+	p7.Hasher = &testHasher{reader: reader}
 
 	if err := p7.Verify(); err != nil {
 		t.Errorf("Verify failed with error: %v", err)
 	}
+}
+
+func TestVerifyWithHasherError(t *testing.T) {
+	fixture := UnmarshalTestFixture(HashCalcSignedTestFixture)
+	p7, err := Parse(fixture.Input)
+	if err != nil {
+		t.Errorf("Parse encountered unexpected error: %v", err)
+	}
+
+	dummyError := fmt.Errorf("dummy error")
+	p7.Hasher = &testHasher{retErr: dummyError}
+
+	if err := p7.Verify(); err != dummyError {
+		t.Errorf("Verify did not return expected error: %v", err)
+	}
+}
+
+type testHasher struct {
+	reader io.Reader // custom streaming reader
+	retErr error
+}
+
+func (m *testHasher) Hash(h hash.Hash, content []byte) ([]byte, error) {
+	if m.retErr != nil {
+		return nil, m.retErr
+	}
+
+	bufferSize := 128
+	buffer := make([]byte, bufferSize)
+	for {
+		count, err := m.reader.Read(buffer)
+		if count > 0 {
+			h.Write(buffer[:count])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h.Sum(nil), nil
 }
 
 var HashCalcSignedTestFixture = `

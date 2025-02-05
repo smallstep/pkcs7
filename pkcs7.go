@@ -27,8 +27,13 @@ type PKCS7 struct {
 	Certificates []*x509.Certificate
 	CRLs         []pkix.CertificateList
 	Signers      []signerInfo
-	HashCalc     func(hash.Hash, []byte) []byte
+	Hasher       Hasher
 	raw          interface{}
+}
+
+// Hasher represents interface for defining a custom hash function.
+type Hasher interface {
+	Hash(hash.Hash, []byte) ([]byte, error)
 }
 
 type contentInfo struct {
