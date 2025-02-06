@@ -1,6 +1,7 @@
 package pkcs7
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
@@ -369,7 +370,7 @@ func unmarshalAttribute(attrs []attribute, attributeType asn1.ObjectIdentifier, 
 
 func calculateHash(hasher Hasher, hashFunc crypto.Hash, content []byte) (computed []byte, err error) {
 	if hasher != nil {
-		computed, err = hasher.Hash(hashFunc, content)
+		computed, err = hasher.Hash(hashFunc, bytes.NewReader(content))
 	} else {
 		if !hashFunc.Available() {
 			return nil, fmt.Errorf("hash function %q not available", hashFunc.String())
@@ -382,4 +383,3 @@ func calculateHash(hasher Hasher, hashFunc crypto.Hash, content []byte) (compute
 
 	return
 }
-
