@@ -226,7 +226,7 @@ func (m *testHasher) Hash(hashFunc crypto.Hash, reader io.Reader) ([]byte, error
 	}
 
 	if !hashFunc.Available() {
-		return nil, fmt.Errorf("hash function %q not available", hashFunc.String())
+		return nil, fmt.Errorf("hash function %v not available", hashFunc)
 	}
 
 	h := hashFunc.New()
