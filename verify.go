@@ -373,7 +373,7 @@ func calculateHash(hasher Hasher, hashFunc crypto.Hash, content []byte) (compute
 		computed, err = hasher.Hash(hashFunc, bytes.NewReader(content))
 	} else {
 		if !hashFunc.Available() {
-			return nil, fmt.Errorf("hash function %q not available", hashFunc.String())
+			return nil, fmt.Errorf("hash function %v not available", hashFunc)
 		}
 
 		h := hashFunc.New()
