@@ -1,13 +1,13 @@
 package pkcs7
 
 import (
+	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"hash"
 	"time"
 )
 
@@ -90,8 +90,7 @@ func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPo
 		if err != nil {
 			return err
 		}
-		h := hash.New()
-		computed, err := p7.calculateHash(h, p7.Content)
+		computed, err := calculateHash(p7.Hasher, hash, p7.Content)
 		if err != nil {
 			return err
 		}
@@ -148,8 +147,7 @@ func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (e
 		if err != nil {
 			return err
 		}
-		h := hash.New()
-		computed, err := p7.calculateHash(h, p7.Content)
+		computed, err := calculateHash(p7.Hasher, hash, p7.Content)
 		if err != nil {
 			return err
 		}
@@ -369,12 +367,19 @@ func unmarshalAttribute(attrs []attribute, attributeType asn1.ObjectIdentifier, 
 	return errors.New("pkcs7: attribute type not in attributes")
 }
 
-func (p7 *PKCS7) calculateHash(h hash.Hash, content []byte) (computed []byte, err error) {
-	if p7.Hasher != nil {
-		computed, err = p7.Hasher.Hash(h, content)
+func calculateHash(hasher Hasher, hashFunc crypto.Hash, content []byte) (computed []byte, err error) {
+	if hasher != nil {
+		computed, err = hasher.Hash(hashFunc, content)
 	} else {
-		h.Write(content)
+		if !hashFunc.Available() {
+			return nil, fmt.Errorf("hash function %q not available", hashFunc.String())
+		}
+
+		h := hashFunc.New()
+		_, _ = h.Write(content)
 		computed = h.Sum(nil)
 	}
+
 	return
 }
+
