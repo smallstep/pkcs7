@@ -2,6 +2,7 @@ package pkcs7
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -12,7 +13,6 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
-	"hash"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -221,10 +221,16 @@ type testHasher struct {
 	retErr error
 }
 
-func (m *testHasher) Hash(h hash.Hash, content []byte) ([]byte, error) {
+func (m *testHasher) Hash(hashFunc crypto.Hash, content []byte) ([]byte, error) {
 	if m.retErr != nil {
 		return nil, m.retErr
 	}
+
+	if !hashFunc.Available() {
+		return nil, fmt.Errorf("hash function %q not available", hashFunc.String())
+	}
+
+	h := hashFunc.New()
 
 	bufferSize := 128
 	buffer := make([]byte, bufferSize)

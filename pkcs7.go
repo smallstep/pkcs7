@@ -12,7 +12,6 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"hash"
 	"sort"
 	"sync"
 
@@ -31,9 +30,9 @@ type PKCS7 struct {
 	raw          interface{}
 }
 
-// Hasher represents interface for defining a custom hash function.
+// Hasher is an interface defining a custom hash calculator.
 type Hasher interface {
-	Hash(hash.Hash, []byte) ([]byte, error)
+	Hash(crypto.Hash, []byte) ([]byte, error)
 }
 
 type contentInfo struct {
