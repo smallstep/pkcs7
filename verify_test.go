@@ -193,8 +193,8 @@ func TestVerifyWithHasher(t *testing.T) {
 	}
 
 	const longBuffer = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam a molestie odio, id accumsan dolor. Praesent ultricies enim et pharetra molestie. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur vitae pellentesque tortor. Curabitur nulla mi, semper non lectus nec, auctor euismod tellus. Nunc vestibulum nisi quis felis efficitur, vel finibus nunc vehicula. Mauris ipsum mi, eleifend in urna non, pellentesque facilisis turpis. Ut eleifend viverra imperdiet. Vestibulum ut ligula non nunc vestibulum lobortis. Curabitur at elementum nisl. Sed facilisis ligula in pulvinar aliquet. Sed semper interdum ipsum quis hendrerit."
-	reader := bytes.NewReader([]byte(longBuffer))
-	p7.Hasher = &testHasher{reader: reader}
+	p7.Content = []byte(longBuffer)
+	p7.Hasher = &testHasher{}
 
 	if err := p7.Verify(); err != nil {
 		t.Errorf("Verify failed with error: %v", err)
@@ -217,11 +217,10 @@ func TestVerifyWithHasherError(t *testing.T) {
 }
 
 type testHasher struct {
-	reader io.Reader // custom streaming reader
 	retErr error
 }
 
-func (m *testHasher) Hash(hashFunc crypto.Hash, content []byte) ([]byte, error) {
+func (m *testHasher) Hash(hashFunc crypto.Hash, reader io.Reader) ([]byte, error) {
 	if m.retErr != nil {
 		return nil, m.retErr
 	}
@@ -235,7 +234,7 @@ func (m *testHasher) Hash(hashFunc crypto.Hash, content []byte) ([]byte, error) 
 	bufferSize := 128
 	buffer := make([]byte, bufferSize)
 	for {
-		count, err := m.reader.Read(buffer)
+		count, err := reader.Read(buffer)
 		if count > 0 {
 			h.Write(buffer[:count])
 		}
