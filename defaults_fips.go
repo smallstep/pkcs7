@@ -37,7 +37,7 @@ var KeyEncryptionHash = crypto.SHA256
 // KeyEncryptionAlgorithm determines the algorithm used to encrypt a
 // content key. Change the value of this variable to change which
 // algorithm is used in the Encrypt() function.
-var KeyEncryptionAlgorithm = OIDEncryptionAlgorithmRSA
+var KeyEncryptionAlgorithm = OIDEncryptionAlgorithmRSAOAEP
 
 // SignatureAlgorithm determines the algorithm used to sign the message.
 // Change the value of this variable to change which algorithm is used in
