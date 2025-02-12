@@ -39,47 +39,13 @@ type encryptedContentInfo struct {
 	EncryptedContent           asn1.RawValue `asn1:"tag:0,optional"`
 }
 
-const (
-	// EncryptionAlgorithmDESCBC is the DES CBC encryption algorithm
-	EncryptionAlgorithmDESCBC = iota
-
-	// EncryptionAlgorithmAES128CBC is the AES 128 bits with CBC encryption algorithm
-	// Avoid this algorithm unless required for interoperability; use AES GCM instead.
-	EncryptionAlgorithmAES128CBC
-
-	// EncryptionAlgorithmAES256CBC is the AES 256 bits with CBC encryption algorithm
-	// Avoid this algorithm unless required for interoperability; use AES GCM instead.
-	EncryptionAlgorithmAES256CBC
-
-	// EncryptionAlgorithmAES128GCM is the AES 128 bits with GCM encryption algorithm
-	EncryptionAlgorithmAES128GCM
-
-	// EncryptionAlgorithmAES256GCM is the AES 256 bits with GCM encryption algorithm
-	EncryptionAlgorithmAES256GCM
-)
-
-// ContentEncryptionAlgorithm determines the algorithm used to encrypt the
-// plaintext message. Change the value of this variable to change which
-// algorithm is used in the Encrypt() function.
-var ContentEncryptionAlgorithm = EncryptionAlgorithmDESCBC
-
 // ErrUnsupportedEncryptionAlgorithm is returned when attempting to encrypt
 // content with an unsupported algorithm.
 var ErrUnsupportedEncryptionAlgorithm = errors.New("pkcs7: cannot encrypt content: only DES-CBC, AES-CBC, and AES-GCM supported")
 
-// KeyEncryptionAlgorithm determines the algorithm used to encrypt a
-// content key. Change the value of this variable to change which
-// algorithm is used in the Encrypt() function.
-var KeyEncryptionAlgorithm = OIDEncryptionAlgorithmRSA
-
 // ErrUnsupportedKeyEncryptionAlgorithm is returned when an
 // unsupported key encryption algorithm OID is provided.
 var ErrUnsupportedKeyEncryptionAlgorithm = errors.New("pkcs7: unsupported key encryption algorithm provided")
-
-// KeyEncryptionHash determines the crypto.Hash algorithm to use
-// when encrypting a content key. Change the value of this variable
-// to change which algorithm is used in the Encrypt() function.
-var KeyEncryptionHash = crypto.SHA256
 
 // ErrUnsupportedKeyEncryptionHash is returned when an
 // unsupported key encryption hash is provided.
