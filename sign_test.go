@@ -15,6 +15,76 @@ import (
 	"testing"
 )
 
+func TestSignWithGlobalDefaultDigestAlgorithm(t *testing.T) {
+	if err := SetDefaultDigestAlgorithm(asn1.ObjectIdentifier{}); err == nil {
+		t.Fatal("expected an error setting invalid digest algorithm")
+	}
+
+	currentDigestAlgorithm := defaultMessageDigestAlgorithmOID()
+	if !currentDigestAlgorithm.Equal(OIDDigestAlgorithmSHA1) {
+		t.Fatalf("expected digest algorithm %q, but got %q", OIDDigestAlgorithmSHA512, currentDigestAlgorithm)
+	}
+
+	if err := SetDefaultDigestAlgorithm(OIDDigestAlgorithmSHA512); err != nil {
+		t.Fatalf("failed setting default digest algorithm: %v", err)
+	}
+
+	defer func() {
+		currentDigestAlgorithm := defaultMessageDigestAlgorithmOID()
+		if !currentDigestAlgorithm.Equal(OIDDigestAlgorithmSHA512) {
+			t.Fatalf("expected digest algorithm %q, but got %q", OIDDigestAlgorithmSHA512, currentDigestAlgorithm)
+		}
+		if err := SetDefaultDigestAlgorithm(OIDDigestAlgorithmSHA1); err != nil {
+			t.Fatalf("failed resetting default digest algorithm: %v", err)
+		}
+		currentDigestAlgorithm = defaultMessageDigestAlgorithmOID()
+		if !currentDigestAlgorithm.Equal(OIDDigestAlgorithmSHA1) {
+			t.Fatalf("expected digest algorithm %q, but got %q", OIDDigestAlgorithmSHA1, currentDigestAlgorithm)
+		}
+	}()
+
+	cert, err := createTestCertificateByIssuer("PKCS7 Test Root CA", nil, x509.ECDSAWithSHA256, true)
+	if err != nil {
+		t.Fatalf("failed cannot generate root cert: %v", err)
+	}
+	truststore := x509.NewCertPool()
+	truststore.AddCert(cert.Certificate)
+
+	toBeSigned, err := NewSignedData([]byte("test"))
+	if err != nil {
+		t.Fatalf("failed creating signed data: %v", err)
+	}
+
+	if !toBeSigned.digestOid.Equal(OIDDigestAlgorithmSHA512) {
+		t.Fatalf("expected digest algorithm %q, but got %q", OIDDigestAlgorithmSHA512, toBeSigned.digestOid)
+	}
+
+	if err := toBeSigned.AddSignerChain(cert.Certificate, *cert.PrivateKey, nil, SignerInfoConfig{}); err != nil {
+		t.Fatalf("failed adding signer chain: %v", err)
+	}
+
+	signed, err := toBeSigned.Finish()
+	if err != nil {
+		t.Fatalf("failed signing data: %v", err)
+	}
+
+	pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: signed})
+	p7, err := Parse(signed)
+	if err != nil {
+		t.Fatalf("failed parsing PEM encoded signed data: %v", err)
+	}
+	if err := p7.VerifyWithChain(truststore); err != nil {
+		t.Fatalf("failed verifying PKCS7: %v", err)
+	}
+	if !bytes.Equal([]byte("test"), p7.Content) {
+		t.Fatal("parsed PKCS7 content does not equal signed content")
+	}
+
+	if !p7.Signers[0].DigestAlgorithm.Algorithm.Equal(OIDDigestAlgorithmSHA512) {
+		t.Fatalf("expected digest algorithm %q, but got %q", OIDDigestAlgorithmSHA512, p7.Signers[0].DigestAlgorithm.Algorithm)
+	}
+}
+
 func TestSign(t *testing.T) {
 	content := []byte("Hello World")
 	sigalgs := []x509.SignatureAlgorithm{
