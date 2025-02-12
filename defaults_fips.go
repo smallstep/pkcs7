@@ -27,7 +27,7 @@ const (
 // ContentEncryptionAlgorithm determines the algorithm used to encrypt the
 // plaintext message. Change the value of this variable to change which
 // algorithm is used in the Encrypt() function.
-var ContentEncryptionAlgorithm = EncryptionAlgorithmDESCBC
+var ContentEncryptionAlgorithm = EncryptionAlgorithmAES256CBC
 
 // KeyEncryptionHash determines the crypto.Hash algorithm to use
 // when encrypting a content key. Change the value of this variable
@@ -42,4 +42,4 @@ var KeyEncryptionAlgorithm = OIDEncryptionAlgorithmRSA
 // SignatureAlgorithm determines the algorithm used to sign the message.
 // Change the value of this variable to change which algorithm is used in
 // the PKCS7 Envelope signing
-var SignatureDigestAlgorithm = OIDDigestAlgorithmSHA1
+var SignatureDigestAlgorithm = OIDDigestAlgorithmSHA256
