@@ -243,7 +243,7 @@ func TestUnmarshalSignedAttribute(t *testing.T) {
 }
 
 func TestDegenerateCertificate(t *testing.T) {
-	cert, err := createTestCertificate(x509.SHA1WithRSA)
+	cert, err := createTestCertificate(x509.SHA256WithRSA)
 	if err != nil {
 		t.Fatal(err)
 	}
