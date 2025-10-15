@@ -316,6 +316,18 @@ func getSignatureAlgorithm(digestEncryption, digest pkix.AlgorithmIdentifier) (x
 			return -1, fmt.Errorf("pkcs7: unsupported digest %q for encryption algorithm %q",
 				digest.Algorithm.String(), digestEncryption.Algorithm.String())
 		}
+	case digestEncryption.Algorithm.Equal(OIDEncryptionAlgorithmRSAPSS):
+		switch {
+		case digest.Algorithm.Equal(OIDDigestAlgorithmSHA512):
+			return x509.SHA512WithRSAPSS, nil
+		case digest.Algorithm.Equal(OIDDigestAlgorithmSHA384):
+			return x509.SHA384WithRSAPSS, nil
+		case digest.Algorithm.Equal(OIDDigestAlgorithmSHA256):
+			return x509.SHA256WithRSAPSS, nil
+		default:
+			return -1, fmt.Errorf("pkcs7: unsupported digest %q for encryption algorithm %q",
+				digest.Algorithm.String(), digestEncryption.Algorithm.String())
+		}
 	case digestEncryption.Algorithm.Equal(OIDDigestAlgorithmDSA),
 		digestEncryption.Algorithm.Equal(OIDDigestAlgorithmDSASHA1):
 		switch {
