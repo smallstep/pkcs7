@@ -81,7 +81,7 @@ var (
 	OIDEncryptionAlgorithmRSASHA512 = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13} // ditto
 	OIDEncryptionAlgorithmRSASHA224 = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 14} // ditto
 
-	OIDEncryptionAlgorithmRSAPSS = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10} // see https://www.rfc-editor.org/rfc/rfc3447.html and https://datatracker.ietf.org/doc/html/rfc8017
+	OIDEncryptionAlgorithmRSASSAPSS = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10} // see https://www.rfc-editor.org/rfc/rfc3447.html and https://datatracker.ietf.org/doc/html/rfc8017
 
 	OIDEncryptionAlgorithmECDSAP256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 3, 1, 7}
 	OIDEncryptionAlgorithmECDSAP384 = asn1.ObjectIdentifier{1, 3, 132, 0, 34}
