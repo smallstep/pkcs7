@@ -10,6 +10,7 @@ import (
 )
 
 func TestBer2Der(t *testing.T) {
+	t.Parallel()
 	// indefinite length fixture
 	ber := []byte{0x30, 0x80, 0x02, 0x01, 0x01, 0x00, 0x00}
 	expected := []byte{0x30, 0x03, 0x02, 0x01, 0x01}
@@ -39,7 +40,67 @@ func TestBer2Der(t *testing.T) {
 	}
 }
 
+func TestBer2Der_BigLength(t *testing.T) {
+	t.Parallel()
+	// Test indefinite length in BER encoding resulting in the long definite
+	// encoding in DER.
+	for step := 0; step <= 2; step++ {
+		// The length span will N*3 or 150 that force 2-byte long length
+		// encoding.
+		N := 50
+		switch step {
+		case 1:
+			N = 1000
+		case 2:
+			N = 100_1000
+		}
+		ber := []byte{0x30, 0x80}
+		for i := 0; i < N; i++ {
+			ber = append(ber, 0x02, 0x01, 0x01)
+		}
+		ber = append(ber, 0, 0)
+		der, err := ber2der(ber)
+		if err != nil {
+			t.Fatalf("ber2der failed with error: %v", err)
+		}
+		spanLength := N * 3
+		expected := []byte{0x30, byte(0x80 + step + 1)}
+		for i := 0; i <= step; i++ {
+			shift := 8 * (step - i)
+			expected = append(expected, byte(spanLength>>shift))
+		}
+		expected = append(expected, ber[2:len(ber)-2]...)
+		if !bytes.Equal(der, expected) {
+			t.Errorf("ber2der result did not match.\n\tExpected: % X\n\tActual:   % X", expected[:50], der[:50])
+		}
+		if der2, err := ber2der(der); err != nil {
+			t.Errorf("ber2der on DER bytes failed with error: %v", err)
+		} else {
+			if !bytes.Equal(der, der2) {
+				t.Error("ber2der is not idempotent")
+			}
+		}
+
+		var things []int
+		rest, err := asn1.Unmarshal(der, &things)
+		if err != nil {
+			t.Errorf("Cannot parse resulting DER because: %v", err)
+		} else if len(rest) > 0 {
+			t.Errorf("Resulting DER has %d trailing bytes", len(rest))
+		}
+		if len(things) != N {
+			t.Errorf("Decoded DER array has unexpected length: %d", len(things))
+		}
+		for i := 0; i < len(things); i++ {
+			if things[i] != 1 {
+				t.Errorf("Unexpected value in things[%d]: %d", i, things[i])
+			}
+		}
+	}
+}
+
 func TestBer2Der_Negatives(t *testing.T) {
+	t.Parallel()
 	fixtures := []struct {
 		Input         []byte
 		ErrorContains string
@@ -50,21 +111,25 @@ func TestBer2Der_Negatives(t *testing.T) {
 		{[]byte{0x30, 0x80, 0x1, 0x2, 0x1, 0x2}, "Invalid BER format"},
 		{[]byte{0x30, 0x80, 0x1, 0x2}, "BER tag length is more than available data"},
 		{[]byte{0x30, 0x03, 0x01, 0x02}, "length is more than available data"},
+		// Also check when the length + offset overflow maxInt32.
+		{[]byte{0x30, 0x84, 0x7F, 0xFF, 0xFF, 0xFF, 0x2, 0x1, 0x2}, "length is more than available data"},
 		{[]byte{0x30}, "end of ber data reached"},
+		{[]byte{0x30, 0x4, 0x30, 0x3, 0x02, 0x01, 0x01},
+			"a nested object spans beyond parent's length"},
 	}
 
 	for _, fixture := range fixtures {
 		_, err := ber2der(fixture.Input)
 		if err == nil {
 			t.Errorf("No error thrown. Expected: %s", fixture.ErrorContains)
-		}
-		if !strings.Contains(err.Error(), fixture.ErrorContains) {
+		} else if !strings.Contains(err.Error(), fixture.ErrorContains) {
 			t.Errorf("Unexpected error thrown.\n\tExpected: /%s/\n\tActual: %s", fixture.ErrorContains, err.Error())
 		}
 	}
 }
 
 func TestBer2Der_NestedMultipleIndefinite(t *testing.T) {
+	t.Parallel()
 	// indefinite length fixture
 	ber := []byte{0x30, 0x80, 0x30, 0x80, 0x02, 0x01, 0x01, 0x00, 0x00, 0x30, 0x80, 0x02, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00}
 	expected := []byte{0x30, 0x0A, 0x30, 0x03, 0x02, 0x01, 0x01, 0x30, 0x03, 0x02, 0x01, 0x02}
@@ -101,6 +166,7 @@ func TestBer2Der_NestedMultipleIndefinite(t *testing.T) {
 }
 
 func TestVerifyIndefiniteLengthBer(t *testing.T) {
+	t.Parallel()
 	decoded := mustDecodePEM([]byte(testPKCS7))
 
 	_, err := ber2der(decoded)
