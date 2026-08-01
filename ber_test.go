@@ -39,6 +39,35 @@ func TestBer2Der(t *testing.T) {
 	}
 }
 
+func TestBer2Der_EmptyIndefinite(t *testing.T) {
+	// indefinite length fixture without content (actual 0-length)
+	ber := []byte{0x30, 0x80, 0x00, 0x00}
+	expected := []byte{0x30, 0x00}
+	der, err := ber2der(ber)
+	if err != nil {
+		t.Fatalf("ber2der failed with error: %v", err)
+	}
+	if !bytes.Equal(der, expected) {
+		t.Errorf("ber2der result did not match.\n\tExpected: % X\n\tActual: % X", expected, der)
+	}
+
+	if der2, err := ber2der(der); err != nil {
+		t.Errorf("ber2der on DER bytes failed with error: %v", err)
+	} else {
+		if !bytes.Equal(der, der2) {
+			t.Error("ber2der is not idempotent")
+		}
+	}
+	var thing struct {
+	}
+	rest, err := asn1.Unmarshal(der, &thing)
+	if err != nil {
+		t.Errorf("Cannot parse resulting DER because: %v", err)
+	} else if len(rest) > 0 {
+		t.Errorf("Resulting DER has trailing data: % X", rest)
+	}
+}
+
 func TestBer2Der_Negatives(t *testing.T) {
 	fixtures := []struct {
 		Input         []byte

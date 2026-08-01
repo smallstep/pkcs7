@@ -223,14 +223,6 @@ func readObject(ber []byte, offset int) (asn1Object, int, error) {
 	} else {
 		var subObjects []asn1Object
 		for (offset < contentEnd) || indefinite {
-			var subObj asn1Object
-			var err error
-			subObj, offset, err = readObject(ber, offset)
-			if err != nil {
-				return nil, 0, err
-			}
-			subObjects = append(subObjects, subObj)
-
 			if indefinite {
 				terminated, err := isIndefiniteTermination(ber, offset)
 				if err != nil {
@@ -241,6 +233,14 @@ func readObject(ber []byte, offset int) (asn1Object, int, error) {
 					break
 				}
 			}
+
+			var subObj asn1Object
+			var err error
+			subObj, offset, err = readObject(ber, offset)
+			if err != nil {
+				return nil, 0, err
+			}
+			subObjects = append(subObjects, subObj)
 		}
 		obj = asn1Structured{
 			tagBytes: ber[tagStart:tagEnd],
