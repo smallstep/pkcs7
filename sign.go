@@ -196,9 +196,12 @@ func (sd *SignedData) AddSignerChain(ee *x509.Certificate, pkey crypto.PrivateKe
 	h := hash.New()
 	h.Write(sd.data)
 	sd.messageDigest = h.Sum(nil)
-	encryptionOid, err := getOIDForEncryptionAlgorithm(pkey, sd.digestOid)
-	if err != nil {
-		return err
+	encryptionOid := sd.encryptionOid
+	if encryptionOid == nil {
+		encryptionOid, err = getOIDForEncryptionAlgorithm(pkey, sd.digestOid)
+		if err != nil {
+			return err
+		}
 	}
 	attrs := &attributes{}
 	attrs.Add(OIDAttributeContentType, sd.sd.ContentInfo.ContentType)

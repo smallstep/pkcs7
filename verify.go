@@ -12,11 +12,27 @@ import (
 	"time"
 )
 
+// VerifyOptions controls optional PKCS7 signature verification behavior.
+type VerifyOptions struct {
+	// AllowUnsortedAuthenticatedAttributes permits a compatibility fallback
+	// for legacy implementations that sign authenticated attributes in their
+	// encoded order instead of DER SET order.
+	//
+	// This option is disabled by default.
+	AllowUnsortedAuthenticatedAttributes bool
+}
+
 // Verify is a wrapper around VerifyWithChain() that initializes an empty
 // trust store, effectively disabling certificate verification when validating
 // a signature.
 func (p7 *PKCS7) Verify() (err error) {
 	return p7.VerifyWithChain(nil)
+}
+
+// VerifyWithOptions checks the signatures of a PKCS7 object using the supplied
+// verification options and an empty trust store.
+func (p7 *PKCS7) VerifyWithOptions(options VerifyOptions) (err error) {
+	return p7.VerifyWithChainAndOptions(nil, options)
 }
 
 // VerifyWithChain checks the signatures of a PKCS7 object.
@@ -27,11 +43,23 @@ func (p7 *PKCS7) Verify() (err error) {
 // authenticated attr verifies the chain at that time and UTC now
 // otherwise.
 func (p7 *PKCS7) VerifyWithChain(truststore *x509.CertPool) (err error) {
+	return p7.VerifyWithChainAndOptions(truststore, VerifyOptions{})
+}
+
+// VerifyWithChainAndOptions checks the signatures of a PKCS7 object using the
+// supplied verification options.
+//
+// If truststore is not nil, it also verifies the chain of trust of
+// the end-entity signer cert to one of the roots in the
+// truststore. When the PKCS7 object includes the signing time
+// authenticated attr verifies the chain at that time and UTC now
+// otherwise.
+func (p7 *PKCS7) VerifyWithChainAndOptions(truststore *x509.CertPool, options VerifyOptions) (err error) {
 	if len(p7.Signers) == 0 {
 		return errors.New("pkcs7: Message has no signers")
 	}
 	for _, signer := range p7.Signers {
-		if err := verifySignature(p7, signer, truststore); err != nil {
+		if err := verifySignatureWithOptions(p7, signer, truststore, options); err != nil {
 			return err
 		}
 	}
@@ -131,6 +159,28 @@ func verifySignatureAtTime(p7 *PKCS7, signer signerInfo, truststore *x509.CertPo
 }
 
 func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (err error) {
+	return verifySignatureWithOptions(p7, signer, truststore, VerifyOptions{})
+}
+
+func marshalAttributesPreserveOrder(attrs []attribute) ([]byte, error) {
+	var content []byte
+
+	for _, attr := range attrs {
+		encoded, err := asn1.Marshal(attr)
+		if err != nil {
+			return nil, err
+		}
+		content = append(content, encoded...)
+	}
+
+	return asn1.Marshal(asn1.RawValue{
+		Tag:        17,
+		IsCompound: true,
+		Bytes:      content,
+	})
+}
+
+func verifySignatureWithOptions(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool, options VerifyOptions) (err error) {
 	signedData := p7.Content
 	ee := getCertFromCertsByIssuerAndSerial(p7.Certificates, signer.IssuerAndSerialNumber)
 	if ee == nil {
@@ -184,7 +234,19 @@ func verifySignature(p7 *PKCS7, signer signerInfo, truststore *x509.CertPool) (e
 	if err != nil {
 		return err
 	}
-	return ee.CheckSignature(sigalg, signedData, signer.EncryptedDigest)
+	signatureErr := ee.CheckSignature(sigalg, signedData, signer.EncryptedDigest)
+	if signatureErr == nil || !options.AllowUnsortedAuthenticatedAttributes || len(signer.AuthenticatedAttributes) == 0 {
+		return signatureErr
+	}
+
+	legacySignedData, err := marshalAttributesPreserveOrder(signer.AuthenticatedAttributes)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(legacySignedData, signedData) {
+		return signatureErr
+	}
+	return ee.CheckSignature(sigalg, legacySignedData, signer.EncryptedDigest)
 }
 
 // GetOnlySigner returns an x509.Certificate for the first signer of the signed
