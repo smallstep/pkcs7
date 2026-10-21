@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/des"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -151,5 +153,154 @@ func TestDecryptPadding(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// Malformed CBC ciphertext could panic during decryption. The stdlib requires
+// whole blocks and panics otherwise:
+//
+//	func (x *cbcDecrypter) CryptBlocks(dst, src []byte) {
+//		if len(src)%x.blockSize != 0 {
+//			panic("crypto/cipher: input not full blocks")
+//		}
+//		...
+//
+// The guard rejects ciphertext whose length is not divisible by
+// mode.BlockSize() before CryptBlocks is called. Using the mode's actual
+// block size preserves valid AES, DES and 3DES input; hardcoding 16 would
+// reject valid DES/3DES lengths such as 8 and 24. Whether the panic
+// terminates the process depends on the application's panic recovery.
+//
+// Empty ciphertext passes this guard, since 0 is divisible by the block
+// size; unpad rejects it afterwards, so empty-input behavior is unchanged.
+// The GCM path needs no equivalent guard: GCM is an AEAD mode whose Open
+// returns an error, rather than panicking, for ciphertext shorter than the
+// authentication tag, and the existing nonce-length validation covers its
+// nonce-size precondition.
+func TestDecryptNonBlockAlignedCiphertext(t *testing.T) {
+	fixture := UnmarshalTestFixture(EncryptedTestFixture)
+	cert, privateKey := fixture.Certificate, fixture.PrivateKey
+
+	ciphers := []struct {
+		name     string
+		oid      asn1.ObjectIdentifier
+		key      []byte
+		newBlock func([]byte) (cipher.Block, error)
+		controls []int // valid ciphertext lengths, in bytes
+	}{
+		{
+			name:     "DES",
+			oid:      OIDEncryptionAlgorithmDESCBC,
+			key:      make([]byte, des.BlockSize),
+			newBlock: des.NewCipher,
+			controls: []int{8, 24},
+		},
+		{
+			name:     "3DES",
+			oid:      OIDEncryptionAlgorithmDESEDE3CBC,
+			key:      make([]byte, 24), // 3DES key length
+			newBlock: des.NewTripleDESCipher,
+			controls: []int{8, 24},
+		},
+		{
+			name:     "AES-128",
+			oid:      OIDEncryptionAlgorithmAES128CBC,
+			key:      make([]byte, aes.BlockSize),
+			newBlock: aes.NewCipher,
+			controls: []int{16, 32},
+		},
+	}
+
+	for _, c := range ciphers {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			block, err := c.newBlock(c.key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			blockSize := block.BlockSize()
+			iv := make([]byte, blockSize) // Fixed test IV; never used outside this test.
+			wrappedKey, err := rsa.EncryptPKCS1v15(rand.Reader, cert.PublicKey.(*rsa.PublicKey), c.key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			newECI := func(ciphertext []byte) encryptedContentInfo {
+				return encryptedContentInfo{
+					ContentType: OIDData,
+					ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+						Algorithm:  c.oid,
+						Parameters: asn1.RawValue{FullBytes: mustMarshal(t, iv)},
+					},
+					EncryptedContent: asn1.RawValue{Class: 2, Tag: 0, Bytes: ciphertext},
+				}
+			}
+
+			for _, api := range []struct {
+				name      string
+				enveloped bool
+			}{{"PSK", false}, {"RSA", true}} {
+				api := api
+				t.Run(api.name, func(t *testing.T) {
+					// decrypt parses the message and decrypts it, reporting a
+					// panic as a test failure instead of crashing the run.
+					decrypt := func(t *testing.T, eci encryptedContentInfo) ([]byte, error) {
+						t.Helper()
+						defer func() {
+							if r := recover(); r != nil {
+								t.Fatalf("decrypt panicked: %v", r)
+							}
+						}()
+						p7, err := Parse(buildEncryptedMessage(t, eci, cert, wrappedKey, api.enveloped))
+						if err != nil {
+							t.Fatal(err)
+						}
+						if api.enveloped {
+							return p7.Decrypt(cert, privateKey)
+						}
+						return p7.DecryptUsingPSK(c.key)
+					}
+
+					t.Run("malformed", func(t *testing.T) {
+						for _, length := range []int{1, blockSize - 1, blockSize + 1} {
+							length := length
+							t.Run(fmt.Sprintf("len=%d", length), func(t *testing.T) {
+								got, err := decrypt(t, newECI(make([]byte, length)))
+								if err == nil {
+									t.Fatalf("expected an error, got plaintext %x", got)
+								}
+								if !strings.Contains(err.Error(), "not a multiple of the block size") {
+									t.Errorf("unexpected error: %v", err)
+								}
+								if got != nil {
+									t.Errorf("expected no plaintext, got %x", got)
+								}
+							})
+						}
+					})
+
+					t.Run("control", func(t *testing.T) {
+						for _, length := range c.controls {
+							length := length
+							t.Run(fmt.Sprintf("len=%d", length), func(t *testing.T) {
+								plaintext := bytes.Repeat([]byte{0x5a}, length-blockSize+1)
+								padded, err := pad(append([]byte(nil), plaintext...), blockSize)
+								if err != nil {
+									t.Fatal(err)
+								}
+								ciphertext := make([]byte, len(padded))
+								cipher.NewCBCEncrypter(block, iv).CryptBlocks(ciphertext, padded)
+								got, err := decrypt(t, newECI(ciphertext))
+								if err != nil {
+									t.Fatalf("control decryption failed: %v", err)
+								}
+								if !bytes.Equal(got, plaintext) {
+									t.Errorf("got %x, want %x", got, plaintext)
+								}
+							})
+						}
+					})
+				})
+			}
+		})
 	}
 }

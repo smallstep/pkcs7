@@ -193,6 +193,9 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 		return nil, errors.New("pkcs7: encryption algorithm parameters are malformed")
 	}
 	mode := cipher.NewCBCDecrypter(block, iv)
+	if len(cyphertext)%mode.BlockSize() != 0 {
+		return nil, errors.New("pkcs7: ciphertext is not a multiple of the block size")
+	}
 	plaintext := make([]byte, len(cyphertext))
 	mode.CryptBlocks(plaintext, cyphertext)
 	if plaintext, err = unpad(plaintext, mode.BlockSize()); err != nil {
