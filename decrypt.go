@@ -211,6 +211,9 @@ func unpad(data []byte, blocklen int) ([]byte, error) {
 
 	// the last byte is the length of padding
 	padlen := int(data[len(data)-1])
+	if padlen == 0 || padlen > blocklen {
+		return nil, errors.New("pkcs7: invalid padding")
+	}
 
 	// check padding integrity, all bytes should be the same
 	pad := data[len(data)-padlen:]
