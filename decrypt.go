@@ -1,3 +1,8 @@
+// Copyright (c) 2026 OmniTrust Security LLC. All rights reserved.
+// OmniTrust Security LLC's additions and modifications are licensed under the
+// Apache License, Version 2.0 (see LICENSE-APACHE).
+// Existing third-party code remains under its original terms (see LICENSE).
+
 package pkcs7
 
 import (
@@ -26,6 +31,32 @@ var ErrUnsupportedKeyType = errors.New("pkcs7: only RSA keys are supported")
 
 // ErrNotEncryptedContent is returned when attempting to Decrypt data that is not encrypted data
 var ErrNotEncryptedContent = errors.New("pkcs7: content data is a decryptable data type")
+
+// ContentEncryptionAlgorithmID returns the content encryption algorithm of an
+// enveloped data message.
+func (p7 *PKCS7) ContentEncryptionAlgorithmID() (int, error) {
+	data, ok := p7.raw.(envelopedData)
+	if !ok {
+		return 0, ErrNotEncryptedContent
+	}
+	algorithm := data.EncryptedContentInfo.ContentEncryptionAlgorithm.Algorithm
+	switch {
+	case algorithm.Equal(OIDEncryptionAlgorithmDESCBC):
+		return EncryptionAlgorithmDESCBC, nil
+	case algorithm.Equal(OIDEncryptionAlgorithmDESEDE3CBC):
+		return EncryptionAlgorithmDESEDE3CBC, nil
+	case algorithm.Equal(OIDEncryptionAlgorithmAES128CBC):
+		return EncryptionAlgorithmAES128CBC, nil
+	case algorithm.Equal(OIDEncryptionAlgorithmAES256CBC):
+		return EncryptionAlgorithmAES256CBC, nil
+	case algorithm.Equal(OIDEncryptionAlgorithmAES128GCM):
+		return EncryptionAlgorithmAES128GCM, nil
+	case algorithm.Equal(OIDEncryptionAlgorithmAES256GCM):
+		return EncryptionAlgorithmAES256GCM, nil
+	default:
+		return 0, ErrUnsupportedEncryptionAlgorithm
+	}
+}
 
 // Decrypt decrypts encrypted content info for recipient cert and private key
 func (p7 *PKCS7) Decrypt(cert *x509.Certificate, pkey crypto.PrivateKey) ([]byte, error) {

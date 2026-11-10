@@ -1,3 +1,14 @@
+Licensing of this fork
+
+Original PKCS7 code remains subject to the MIT terms reproduced below.
+Original additions and modifications copyright (c) 2026 OmniTrust Security LLC
+are licensed under the Apache License, Version 2.0; see LICENSE-APACHE.
+Existing third-party notices and license terms remain applicable, including
+those in internal/cryptobyte/LICENSE, internal/cryptobyte/PATENTS, and
+internal/legacy/x509/LICENSE.
+
+========================================================================
+
 The MIT License (MIT)
 
 Copyright (c) 2015 Andrew Smith

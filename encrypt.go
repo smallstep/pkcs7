@@ -1,3 +1,8 @@
+// Copyright (c) 2026 OmniTrust Security LLC. All rights reserved.
+// OmniTrust Security LLC's additions and modifications are licensed under the
+// Apache License, Version 2.0 (see LICENSE-APACHE).
+// Existing third-party code remains under its original terms (see LICENSE).
+
 package pkcs7
 
 import (
@@ -56,6 +61,9 @@ const (
 
 	// EncryptionAlgorithmAES256GCM is the AES 256 bits with GCM encryption algorithm
 	EncryptionAlgorithmAES256GCM
+
+	// EncryptionAlgorithmDESEDE3CBC is the Triple DES CBC encryption algorithm.
+	EncryptionAlgorithmDESEDE3CBC
 )
 
 // ContentEncryptionAlgorithm determines the algorithm used to encrypt the
@@ -65,7 +73,7 @@ var ContentEncryptionAlgorithm = EncryptionAlgorithmDESCBC
 
 // ErrUnsupportedEncryptionAlgorithm is returned when attempting to encrypt
 // content with an unsupported algorithm.
-var ErrUnsupportedEncryptionAlgorithm = errors.New("pkcs7: cannot encrypt content: only DES-CBC, AES-CBC, and AES-GCM supported")
+var ErrUnsupportedEncryptionAlgorithm = errors.New("pkcs7: unsupported content encryption algorithm")
 
 // KeyEncryptionAlgorithm determines the algorithm used to encrypt a
 // content key. Change the value of this variable to change which
@@ -96,10 +104,10 @@ type aesGCMParameters struct {
 	ICVLen int
 }
 
-func encryptAESGCM(content []byte, key []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptAESGCM(content []byte, key []byte, algorithm int) ([]byte, *encryptedContentInfo, error) {
 	var keyLen int
 	var algID asn1.ObjectIdentifier
-	switch ContentEncryptionAlgorithm {
+	switch algorithm {
 	case EncryptionAlgorithmAES128GCM:
 		keyLen = 16
 		algID = OIDEncryptionAlgorithmAES128GCM
@@ -107,7 +115,7 @@ func encryptAESGCM(content []byte, key []byte) ([]byte, *encryptedContentInfo, e
 		keyLen = 32
 		algID = OIDEncryptionAlgorithmAES256GCM
 	default:
-		return nil, nil, fmt.Errorf("invalid ContentEncryptionAlgorithm in encryptAESGCM: %d", ContentEncryptionAlgorithm)
+		return nil, nil, fmt.Errorf("invalid ContentEncryptionAlgorithm in encryptAESGCM: %d", algorithm)
 	}
 	if key == nil {
 		// Create AES key
@@ -210,10 +218,40 @@ func encryptDESCBC(content []byte, key []byte) ([]byte, *encryptedContentInfo, e
 	return key, &eci, nil
 }
 
-func encryptAESCBC(content []byte, key []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptDESEDE3CBC(content []byte) ([]byte, *encryptedContentInfo, error) {
+	key := make([]byte, 24)
+	if _, err := rand.Read(key); err != nil {
+		return nil, nil, err
+	}
+	iv := make([]byte, des.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, nil, err
+	}
+	block, err := des.NewTripleDESCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	plaintext, err := pad(content, block.BlockSize())
+	if err != nil {
+		return nil, nil, err
+	}
+	ciphertext := make([]byte, len(plaintext))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(ciphertext, plaintext)
+	eci := &encryptedContentInfo{
+		ContentType: OIDData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  OIDEncryptionAlgorithmDESEDE3CBC,
+			Parameters: asn1.RawValue{Tag: asn1.TagOctetString, Bytes: iv},
+		},
+		EncryptedContent: marshalEncryptedContent(ciphertext),
+	}
+	return key, eci, nil
+}
+
+func encryptAESCBC(content []byte, key []byte, algorithm int) ([]byte, *encryptedContentInfo, error) {
 	var keyLen int
 	var algID asn1.ObjectIdentifier
-	switch ContentEncryptionAlgorithm {
+	switch algorithm {
 	case EncryptionAlgorithmAES128CBC:
 		keyLen = 16
 		algID = OIDEncryptionAlgorithmAES128CBC
@@ -221,7 +259,7 @@ func encryptAESCBC(content []byte, key []byte) ([]byte, *encryptedContentInfo, e
 		keyLen = 32
 		algID = OIDEncryptionAlgorithmAES256CBC
 	default:
-		return nil, nil, fmt.Errorf("invalid ContentEncryptionAlgorithm in encryptAESCBC: %d", ContentEncryptionAlgorithm)
+		return nil, nil, fmt.Errorf("invalid ContentEncryptionAlgorithm in encryptAESCBC: %d", algorithm)
 	}
 
 	if key == nil {
@@ -279,22 +317,30 @@ func encryptAESCBC(content []byte, key []byte) ([]byte, *encryptedContentInfo, e
 //
 // TODO(fullsailor): Add support for encrypting content with other algorithms
 func Encrypt(content []byte, recipients []*x509.Certificate) ([]byte, error) {
+	return EncryptWithAlgorithm(content, recipients, ContentEncryptionAlgorithm)
+}
+
+// EncryptWithAlgorithm encrypts an envelope using the specified content
+// encryption algorithm without changing the package default.
+func EncryptWithAlgorithm(content []byte, recipients []*x509.Certificate, algorithm int) ([]byte, error) {
 	var eci *encryptedContentInfo
 	var key []byte
 	var err error
 
 	// Apply chosen symmetric encryption method
-	switch ContentEncryptionAlgorithm {
+	switch algorithm {
 	case EncryptionAlgorithmDESCBC:
 		key, eci, err = encryptDESCBC(content, nil)
+	case EncryptionAlgorithmDESEDE3CBC:
+		key, eci, err = encryptDESEDE3CBC(content)
 	case EncryptionAlgorithmAES128CBC:
 		fallthrough
 	case EncryptionAlgorithmAES256CBC:
-		key, eci, err = encryptAESCBC(content, nil)
+		key, eci, err = encryptAESCBC(content, nil, algorithm)
 	case EncryptionAlgorithmAES128GCM:
 		fallthrough
 	case EncryptionAlgorithmAES256GCM:
-		key, eci, err = encryptAESGCM(content, nil)
+		key, eci, err = encryptAESGCM(content, nil, algorithm)
 
 	default:
 		return nil, ErrUnsupportedEncryptionAlgorithm
@@ -413,7 +459,7 @@ func EncryptUsingPSK(content []byte, key []byte) ([]byte, error) {
 	case EncryptionAlgorithmAES128GCM:
 		fallthrough
 	case EncryptionAlgorithmAES256GCM:
-		_, eci, err = encryptAESGCM(content, key)
+		_, eci, err = encryptAESGCM(content, key, ContentEncryptionAlgorithm)
 
 	default:
 		return nil, ErrUnsupportedEncryptionAlgorithm

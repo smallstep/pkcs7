@@ -1,3 +1,8 @@
+// Copyright (c) 2026 OmniTrust Security LLC. All rights reserved.
+// OmniTrust Security LLC's additions and modifications are licensed under the
+// Apache License, Version 2.0 (see LICENSE-APACHE).
+// Existing third-party code remains under its original terms (see LICENSE).
+
 package pkcs7
 
 import (
@@ -7,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -21,6 +27,7 @@ func TestEncrypt(t *testing.T) {
 		EncryptionAlgorithmAES256CBC,
 		EncryptionAlgorithmAES128GCM,
 		EncryptionAlgorithmAES256GCM,
+		EncryptionAlgorithmDESEDE3CBC,
 	}
 	sigalgs := []x509.SignatureAlgorithm{
 		x509.SHA1WithRSA,
@@ -52,6 +59,36 @@ func TestEncrypt(t *testing.T) {
 				t.Errorf("encrypted data does not match plaintext:\n\tExpected: %s\n\tActual: %s", plaintext, result)
 			}
 		}
+	}
+}
+
+func TestEncryptWithAlgorithm(t *testing.T) {
+	cert, err := createTestCertificate(x509.SHA256WithRSA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, algorithm := range []int{EncryptionAlgorithmAES128CBC, EncryptionAlgorithmAES256GCM, EncryptionAlgorithmDESEDE3CBC} {
+		algorithm := algorithm
+		t.Run(fmt.Sprint(algorithm), func(t *testing.T) {
+			t.Parallel()
+			plaintext := []byte("algorithm-specific envelope")
+			encoded, err := EncryptWithAlgorithm(plaintext, []*x509.Certificate{cert.Certificate}, algorithm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parsed, err := Parse(encoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := parsed.ContentEncryptionAlgorithmID()
+			if err != nil || got != algorithm {
+				t.Fatalf("algorithm = %d, %v; want %d", got, err, algorithm)
+			}
+			decrypted, err := parsed.Decrypt(cert.Certificate, *cert.PrivateKey)
+			if err != nil || !bytes.Equal(decrypted, plaintext) {
+				t.Fatalf("decrypted = %q, %v; want %q", decrypted, err, plaintext)
+			}
+		})
 	}
 }
 
