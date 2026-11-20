@@ -14,6 +14,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"testing"
 	"time"
 )
 
@@ -295,6 +296,26 @@ func createTestCertificateByIssuer(name string, issuer *certKeyPair, sigAlg x509
 		Certificate: cert,
 		PrivateKey:  &priv,
 	}, nil
+}
+
+// isSHA1CertSignatureSupported reports whether crypto/x509 accepts SHA-1
+// based certificate signatures. Go 1.18 started rejecting them unless
+// GODEBUG=x509sha1=1 is set; Go 1.24 removed that setting.
+func isSHA1CertSignatureSupported(t *testing.T) bool {
+	t.Helper()
+	issuer, err := createTestCertificateByIssuer("SHA-1 Probe CA", nil, x509.SHA256WithRSA, true)
+	if err != nil {
+		t.Fatalf("cannot generate SHA-1 probe issuer cert: %s", err)
+	}
+	cert, err := createTestCertificateByIssuer("SHA-1 Probe Cert", issuer, x509.SHA1WithRSA, false)
+	if err != nil {
+		t.Fatalf("cannot generate SHA-1 probe cert: %s", err)
+	}
+	return cert.Certificate.CheckSignatureFrom(issuer.Certificate) == nil
+}
+
+func isSHA1SignatureAlgorithm(sigAlg x509.SignatureAlgorithm) bool {
+	return sigAlg == x509.SHA1WithRSA || sigAlg == x509.ECDSAWithSHA1
 }
 
 type TestFixture struct {

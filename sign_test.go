@@ -87,6 +87,7 @@ func TestSignWithGlobalDefaultDigestAlgorithm(t *testing.T) {
 
 func TestSign(t *testing.T) {
 	content := []byte("Hello World")
+	sha1Supported := isSHA1CertSignatureSupported(t)
 	sigalgs := []x509.SignatureAlgorithm{
 		x509.SHA1WithRSA,
 		x509.SHA256WithRSA,
@@ -104,6 +105,10 @@ func TestSign(t *testing.T) {
 		truststore := x509.NewCertPool()
 		truststore.AddCert(rootCert.Certificate)
 		for _, sigalginter := range sigalgs {
+			if !sha1Supported && isSHA1SignatureAlgorithm(sigalginter) {
+				t.Logf("skipping %s/%s: SHA-1 certificate signatures are not supported", sigalgroot, sigalginter)
+				continue
+			}
 			interCert, err := createTestCertificateByIssuer("PKCS7 Test Intermediate Cert", rootCert, sigalginter, true)
 			if err != nil {
 				t.Fatalf("test %s/%s: cannot generate intermediate cert: %s", sigalgroot, sigalginter, err)
@@ -111,6 +116,10 @@ func TestSign(t *testing.T) {
 			var parents []*x509.Certificate
 			parents = append(parents, interCert.Certificate)
 			for _, sigalgsigner := range sigalgs {
+				if !sha1Supported && isSHA1SignatureAlgorithm(sigalgsigner) {
+					t.Logf("skipping %s/%s/%s: SHA-1 certificate signatures are not supported", sigalgroot, sigalginter, sigalgsigner)
+					continue
+				}
 				signerCert, err := createTestCertificateByIssuer("PKCS7 Test Signer Cert", interCert, sigalgsigner, false)
 				if err != nil {
 					t.Fatalf("test %s/%s/%s: cannot generate signer cert: %s", sigalgroot, sigalginter, sigalgsigner, err)
