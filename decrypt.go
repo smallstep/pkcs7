@@ -193,6 +193,9 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 		return nil, errors.New("pkcs7: encryption algorithm parameters are malformed")
 	}
 	mode := cipher.NewCBCDecrypter(block, iv)
+	if len(cyphertext)%mode.BlockSize() != 0 {
+		return nil, errors.New("pkcs7: ciphertext is not a multiple of the block size")
+	}
 	plaintext := make([]byte, len(cyphertext))
 	mode.CryptBlocks(plaintext, cyphertext)
 	if plaintext, err = unpad(plaintext, mode.BlockSize()); err != nil {
@@ -211,6 +214,9 @@ func unpad(data []byte, blocklen int) ([]byte, error) {
 
 	// the last byte is the length of padding
 	padlen := int(data[len(data)-1])
+	if padlen == 0 || padlen > blocklen {
+		return nil, errors.New("pkcs7: invalid padding")
+	}
 
 	// check padding integrity, all bytes should be the same
 	pad := data[len(data)-padlen:]
